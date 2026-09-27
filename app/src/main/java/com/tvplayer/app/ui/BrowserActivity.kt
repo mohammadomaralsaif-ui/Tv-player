@@ -172,7 +172,7 @@ class BrowserActivity : AppCompatActivity() {
     private fun applyLayoutForDevice() {
         if (narrow) {
             // Phone: bottom navigation instead of top tabs; categories as chips on top.
-            b.root.setPadding(dp(14), dp(12), dp(14), dp(70))
+            b.mainColumn.setPadding(dp(14), dp(12), dp(14), dp(70))
             b.tabsScroll.isVisible = false
             b.clock.isVisible = false
             b.btnSearch.isVisible = false

@@ -42,6 +42,7 @@ class MainActivity : AppCompatActivity() {
                     askingPin = false
                     Pin.appUnlocked = true
                     b.root.visibility = android.view.View.VISIBLE
+        showLastCrash()
         Updater.resumePending(this)
         Updater.check(this, manual = false)
                     onResume()
@@ -54,6 +55,31 @@ class MainActivity : AppCompatActivity() {
         adapter.submit(list)
         b.empty.isVisible = list.isEmpty()
         if (list.isEmpty()) b.btnAdd.requestFocus() else b.list.post { b.list.getChildAt(0)?.requestFocus() }
+    }
+
+    /** Shows the error from the last crash (once) so it can be sent for fixing. */
+    private fun showLastCrash() {
+        val f = java.io.File(filesDir, com.tvplayer.app.App.CRASH_FILE)
+        if (!f.exists()) return
+        val text = runCatching { f.readText() }.getOrDefault("")
+        f.delete()
+        if (text.isBlank()) return
+        val view = android.widget.TextView(this).apply {
+            this.text = text
+            textSize = 11f
+            setTextIsSelectable(true)
+            setPadding(40, 20, 40, 20)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("التطبيق وقف المرة الماضية")
+            .setMessage("صوّر هاي الشاشة وابعتها عشان ينصلح الخطأ:")
+            .setView(android.widget.ScrollView(this).apply { addView(view) })
+            .setPositiveButton("نسخ") { _, _ ->
+                val cm = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("crash", text))
+            }
+            .setNegativeButton("إغلاق", null)
+            .show()
     }
 
     private fun open(p: ServerProfile) {
