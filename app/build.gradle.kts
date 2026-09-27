@@ -11,15 +11,30 @@ android {
         applicationId = "com.tvplayer.app"
         minSdk = 21
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        // Every CI build gets a higher version so it installs as an update.
+        val build = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
+        versionCode = build
+        versionName = "1.$build"
+    }
+
+    // Permanent release key. The keystore file is encrypted with SIGNING_PASSWORD,
+    // which lives only in the GitHub repository secrets.
+    val signingPassword: String? = System.getenv("SIGNING_PASSWORD")?.takeIf { it.isNotBlank() }
+    signingConfigs {
+        create("release") {
+            if (signingPassword != null) {
+                storeFile = file("release.jks")
+                storePassword = signingPassword
+                keyAlias = "tvplayer"
+                keyPassword = signingPassword
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            // موقّع بمفتاح الـ debug عشان ينزل مباشرة على الجهاز
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (signingPassword != null) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
         }
     }
 

@@ -18,7 +18,16 @@ jobs:
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
       - name: Build
-        run: chmod +x gradlew && ./gradlew assembleRelease --stacktrace
+        env:
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          if [ -z "$SIGNING_PASSWORD" ]; then echo "::warning::SIGNING_PASSWORD secret is not set - signing with a temporary debug key"; fi
+          set -o pipefail
+          ./gradlew assembleRelease --console=plain 2>&1 | tee build.log
+      - name: Report compile errors
+        if: failure()
+        run: grep -E "^e: |error:|FAILURE|What went wrong" -A2 build.log | head -60 | sed 's/^/::error::/' || true
       - name: Rename APK
         run: cp app/build/outputs/apk/release/*.apk TVPlayer.apk
       - uses: actions/upload-artifact@v4
@@ -30,6 +39,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: TV Player (build ${{ github.run_number }})
+          name: TV Player 1.${{ github.run_number }}
           make_latest: true
           files: TVPlayer.apk

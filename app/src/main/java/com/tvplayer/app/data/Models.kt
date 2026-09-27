@@ -30,7 +30,7 @@ data class ServerProfile(
         put("type", type.name)
         put("url", url)
         put("username", username)
-        put("password", password)
+        put("password", Crypto.encrypt(password))
         put("userAgent", userAgent)
         put("liveFormat", liveFormat)
     }
@@ -42,7 +42,7 @@ data class ServerProfile(
             type = runCatching { ServerType.valueOf(o.str("type")) }.getOrDefault(ServerType.M3U),
             url = o.str("url"),
             username = o.str("username"),
-            password = o.str("password"),
+            password = Crypto.decrypt(o.str("password")),
             userAgent = o.str("userAgent"),
             liveFormat = o.str("liveFormat").ifBlank { "m3u8" },
         )

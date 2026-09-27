@@ -10,8 +10,17 @@ class ProfileStore(context: Context) {
 
     // ---------- helpers ----------
 
+    private companion object {
+        /** Decrypted JSON text per key, so each screen doesn't decrypt again. */
+        val cache = HashMap<String, String>()
+    }
+
+    private fun readText(key: String): String = synchronized(cache) {
+        cache[key] ?: Crypto.decrypt(prefs.getString(key, null) ?: "[]").ifEmpty { "[]" }.also { cache[key] = it }
+    }
+
     private fun readArray(key: String): JSONArray =
-        runCatching { JSONArray(prefs.getString(key, "[]")) }.getOrElse { JSONArray() }
+        runCatching { JSONArray(readText(key)) }.getOrElse { JSONArray() }
 
     private fun objects(key: String): List<JSONObject> {
         val arr = readArray(key)
@@ -21,7 +30,17 @@ class ProfileStore(context: Context) {
     private fun writeObjects(key: String, list: List<JSONObject>) {
         val arr = JSONArray()
         list.forEach { arr.put(it) }
-        prefs.edit().putString(key, arr.toString()).apply()
+        val text = arr.toString()
+        synchronized(cache) { cache[key] = text }
+        // Links in these lists contain the server username/password, so everything is stored encrypted.
+        prefs.edit().putString(key, Crypto.encrypt(text)).apply()
+    }
+
+    private fun remove(vararg keys: String) {
+        synchronized(cache) { keys.forEach { cache.remove(it) } }
+        val e = prefs.edit()
+        keys.forEach { e.remove(it) }
+        e.apply()
     }
 
     // ---------- servers ----------
@@ -39,7 +58,7 @@ class ProfileStore(context: Context) {
 
     fun delete(id: String) {
         writeObjects("profiles", all().filter { it.id != id }.map { it.toJson() })
-        prefs.edit().remove("fav_$id").remove("cw_$id").remove("recent_$id").apply()
+        remove("fav_$id", "cw_$id", "recent_$id")
     }
 
     // ---------- favorites ----------
@@ -107,7 +126,7 @@ class ProfileStore(context: Context) {
     }
 
     fun clearContinueWatching(profileId: String) {
-        prefs.edit().remove("cw_$profileId").apply()
+        remove("cw_$profileId")
     }
 
     // ---------- recently watched live channels ----------
@@ -142,4 +161,32 @@ class ProfileStore(context: Context) {
     var sortMode: Int
         get() = prefs.getInt("sort", 0)
         set(v) = prefs.edit().putInt("sort", v).apply()
+
+    // ---------- PIN lock ----------
+
+    val hasPin: Boolean get() = !prefs.getString("pin_hash", null).isNullOrEmpty()
+
+    fun setPin(pin: String?) {
+        if (pin.isNullOrEmpty()) {
+            prefs.edit().remove("pin_hash").remove("pin_salt").putBoolean("lock_app", false).putBoolean("lock_adult", false).apply()
+        } else {
+            val salt = Crypto.newSalt()
+            prefs.edit().putString("pin_salt", salt).putString("pin_hash", Crypto.hashPin(pin, salt)).apply()
+        }
+    }
+
+    fun checkPin(pin: String): Boolean {
+        val salt = prefs.getString("pin_salt", null) ?: return false
+        return Crypto.hashPin(pin, salt) == prefs.getString("pin_hash", null)
+    }
+
+    /** Ask for the PIN every time the app opens. */
+    var lockApp: Boolean
+        get() = hasPin && prefs.getBoolean("lock_app", false)
+        set(v) = prefs.edit().putBoolean("lock_app", v).apply()
+
+    /** Hide adult categories until the PIN is entered. */
+    var lockAdult: Boolean
+        get() = hasPin && prefs.getBoolean("lock_adult", false)
+        set(v) = prefs.edit().putBoolean("lock_adult", v).apply()
 }

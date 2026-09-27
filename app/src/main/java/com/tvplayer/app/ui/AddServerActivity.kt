@@ -50,6 +50,11 @@ class AddServerActivity : AppCompatActivity() {
             b.formatGroup.check(if (p.liveFormat == "ts") R.id.rbTs else R.id.rbHls)
         }
         updateFields()
+        b.showPassword.setOnCheckedChangeListener { _, show ->
+            b.password.inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                (if (show) android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD else android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD)
+            b.password.setSelection(b.password.text.length)
+        }
         b.btnSave.setOnClickListener { save() }
         b.btnCancel.setOnClickListener { finish() }
     }

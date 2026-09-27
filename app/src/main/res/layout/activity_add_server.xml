@@ -95,8 +95,16 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:hint="@string/password"
-                android:inputType="text"
+                android:inputType="textPassword"
                 android:textDirection="ltr" />
+
+            <CheckBox
+                android:id="@+id/showPassword"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="إظهار كلمة المرور"
+                android:textColor="@color/text_dim" />
 
             <TextView
                 android:layout_width="wrap_content"
