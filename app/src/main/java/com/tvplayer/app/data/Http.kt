@@ -15,10 +15,52 @@ object Http {
         OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
-            .followRedirects(true)
-            .followSslRedirects(true) // allow http <-> https redirects, common with IPTV
+            // Redirects are followed by HttpsFixer below, so every hop gets the https fixes too.
+            .followRedirects(false)
+            .followSslRedirects(false)
+            .addInterceptor(HttpsFixer)
             .retryOnConnectionFailure(true)
             .build()
+    }
+
+    /**
+     * Used by every request in the app (server lists, playlists AND video playback):
+     *  - "https://host:80" → "http://host:80" (port 80 never speaks https)
+     *  - https that fails the secure handshake → retried once over plain http
+     *  - follows redirects itself, applying the same fixes to each hop
+     *    (some IPTV servers redirect streams to a broken https address)
+     */
+    private object HttpsFixer : okhttp3.Interceptor {
+        private fun fix(url: okhttp3.HttpUrl): okhttp3.HttpUrl =
+            if (url.isHttps && url.port == 80) url.newBuilder().scheme("http").port(80).build() else url
+
+        private fun send(chain: okhttp3.Interceptor.Chain, request: Request): okhttp3.Response {
+            val req = request.newBuilder().url(fix(request.url)).build()
+            return try {
+                chain.proceed(req)
+            } catch (e: javax.net.ssl.SSLException) {
+                if (!req.url.isHttps) throw e
+                val port = req.url.port
+                val plain = req.url.newBuilder().scheme("http").port(if (port == 443) 80 else port).build()
+                chain.proceed(req.newBuilder().url(plain).build())
+            }
+        }
+
+        override fun intercept(chain: okhttp3.Interceptor.Chain): okhttp3.Response {
+            var request = chain.request()
+            var response = send(chain, request)
+            var hops = 0
+            while (response.isRedirect && hops++ < 10) {
+                val location = response.header("Location") ?: break
+                val next = response.request.url.resolve(location) ?: break
+                response.close()
+                val builder = request.newBuilder().url(next)
+                if (response.code == 303 || (request.method == "POST" && response.code in 301..302)) builder.get()
+                request = builder.build()
+                response = send(chain, request)
+            }
+            return response
+        }
     }
 
     private var cacheDir: java.io.File? = null
