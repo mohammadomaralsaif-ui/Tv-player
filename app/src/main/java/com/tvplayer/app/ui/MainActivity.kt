@@ -54,6 +54,7 @@ class MainActivity : AppCompatActivity() {
         val list = store.all()
         adapter.submit(list)
         b.empty.isVisible = list.isEmpty()
+        b.count.text = if (list.isEmpty()) "" else list.size.toString()
         if (list.isEmpty()) b.btnAdd.requestFocus() else b.list.post { b.list.getChildAt(0)?.requestFocus() }
     }
 

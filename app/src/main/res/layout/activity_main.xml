@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Servers screen. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="24dp">
+    android:paddingStart="20dp"
+    android:paddingTop="20dp"
+    android:paddingEnd="20dp"
+    android:paddingBottom="16dp">
 
+    <!-- Brand bar: logo + name, settings -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -12,57 +17,62 @@
         android:orientation="horizontal">
 
         <ImageView
-            android:layout_width="52dp"
-            android:layout_height="52dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
             android:contentDescription="@null"
             android:src="@mipmap/ic_launcher" />
 
-        <LinearLayout
+        <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="12dp"
             android:layout_weight="1"
-            android:orientation="vertical">
+            android:singleLine="true"
+            android:text="@string/app_name"
+            android:textColor="@color/text"
+            android:textSize="24sp"
+            android:textStyle="bold" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/app_name"
-                android:textColor="@color/text"
-                android:textSize="28sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="سيرفراتك"
-                android:textColor="@color/text_dim"
-                android:textSize="14sp" />
-        </LinearLayout>
-
-        <Button
+        <ImageButton
             android:id="@+id/btnSettings"
-            style="@style/Pill"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
-            android:text="⚙" />
+            style="@style/IconButton"
+            android:contentDescription="الإعدادات"
+            android:src="@drawable/ic_nav_settings" />
+    </LinearLayout>
 
-        <Button
-            android:id="@+id/btnAdd"
-            style="@style/PillPrimary"
+    <!-- Section heading -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="28dp"
+        android:gravity="bottom"
+        android:orientation="horizontal">
+
+        <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/add_server" />
+            android:text="سيرفراتك"
+            android:textColor="@color/text"
+            android:textSize="28sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_marginBottom="5dp"
+            android:textColor="@color/text_dim"
+            android:textSize="14sp" />
     </LinearLayout>
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="@string/hint_long_press"
+        android:layout_marginTop="2dp"
+        android:text="اختر سيرفر للمشاهدة"
         android:textColor="@color/text_dim"
-        android:textSize="13sp" />
+        android:textSize="14sp" />
 
     <FrameLayout
         android:layout_width="match_parent"
@@ -74,18 +84,53 @@
             android:id="@+id/list"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:clipToPadding="false" />
+            android:clipToPadding="false"
+            android:paddingBottom="12dp" />
 
-        <TextView
+        <LinearLayout
             android:id="@+id/empty"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:gravity="center"
-            android:lineSpacingExtra="6dp"
-            android:text="@string/no_servers"
-            android:textColor="@color/text_dim"
-            android:textSize="16sp"
-            android:visibility="gone" />
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <ImageView
+                android:layout_width="84dp"
+                android:layout_height="84dp"
+                android:alpha="0.9"
+                android:contentDescription="@null"
+                android:src="@mipmap/ic_launcher" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="أهلاً في Alsaif"
+                android:textColor="@color/text"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:gravity="center"
+                android:lineSpacingExtra="4dp"
+                android:text="أضف سيرفرك: Xtream أو قائمة M3U أو رابط بث"
+                android:textColor="@color/text_dim"
+                android:textSize="14sp" />
+        </LinearLayout>
     </FrameLayout>
+
+    <Button
+        android:id="@+id/btnAdd"
+        style="@style/PillPrimary"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:minHeight="54dp"
+        android:text="+  إضافة سيرفر"
+        android:textSize="16sp" />
 </LinearLayout>

@@ -30,7 +30,8 @@ class ProfileAdapter(
     class VH(v: View) : RecyclerView.ViewHolder(v) {
         val name: TextView = v.findViewById(R.id.name)
         val sub: TextView = v.findViewById(R.id.sub)
-        val icon: TextView = v.findViewById(R.id.icon)
+        val icon: ImageView = v.findViewById(R.id.icon)
+        val more: View = v.findViewById(R.id.more)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
@@ -45,17 +46,20 @@ class ProfileAdapter(
         val p = items[position]
         h.name.text = p.name
         h.sub.text = when (p.type) {
-            ServerType.XTREAM -> "Xtream Codes • ${p.username}"
+            ServerType.XTREAM -> "Xtream Codes  •  ${p.username}"
             ServerType.M3U -> "قائمة M3U"
             ServerType.DIRECT -> "رابط بث مباشر"
         }
-        h.icon.text = when (p.type) {
-            ServerType.XTREAM -> "📡"
-            ServerType.M3U -> "📋"
-            ServerType.DIRECT -> "▶"
-        }
+        h.icon.setImageResource(
+            when (p.type) {
+                ServerType.XTREAM -> R.drawable.ic_nav_live
+                ServerType.M3U -> R.drawable.ic_type_m3u
+                ServerType.DIRECT -> R.drawable.ic_type_link
+            }
+        )
         h.itemView.setOnClickListener { onClick(p) }
         h.itemView.setOnLongClickListener { onLongClick(p); true }
+        h.more.setOnClickListener { onLongClick(p) }
     }
 }
 
