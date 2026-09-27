@@ -23,9 +23,31 @@ object Http {
 
     fun ua(custom: String?): String = custom?.takeIf { it.isNotBlank() } ?: DEFAULT_UA
 
+    private val HTTPS_PORT_80 = Regex("^https://([^/?#]+):80(?=[/?#]|$)", RegexOption.IGNORE_CASE)
+
+    /**
+     * Fixes common link mistakes: adds http:// when missing, and turns
+     * "https://host:80" into "http://host:80" (port 80 never speaks TLS).
+     */
+    fun fixUrl(raw: String): String {
+        var s = raw.trim()
+        if (!s.startsWith("http://", true) && !s.startsWith("https://", true) && !s.contains("://")) s = "http://$s"
+        return HTTPS_PORT_80.replace(s) { "http://${it.groupValues[1]}:80" }
+    }
+
     suspend fun get(url: String, userAgent: String?): String = withContext(Dispatchers.IO) {
+        val fixed = fixUrl(url)
+        try {
+            fetch(fixed, userAgent)
+        } catch (e: javax.net.ssl.SSLException) {
+            // Server doesn't actually speak https on this address: retry over plain http.
+            if (fixed.startsWith("https://", true)) fetch("http://" + fixed.substring(8), userAgent) else throw e
+        }
+    }
+
+    private fun fetch(url: String, userAgent: String?): String {
         val req = Request.Builder().url(url).header("User-Agent", ua(userAgent)).build()
-        client.newCall(req).execute().use { resp ->
+        return client.newCall(req).execute().use { resp ->
             if (!resp.isSuccessful) throw IOException("السيرفر رد بخطأ HTTP ${resp.code}")
             resp.body?.string() ?: ""
         }

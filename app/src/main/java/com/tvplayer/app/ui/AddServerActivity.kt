@@ -8,6 +8,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import com.tvplayer.app.R
+import com.tvplayer.app.data.Http
 import com.tvplayer.app.data.ProfileStore
 import com.tvplayer.app.data.ServerProfile
 import com.tvplayer.app.data.ServerType
@@ -86,8 +87,8 @@ class AddServerActivity : AppCompatActivity() {
                 return
             }
             url = XtreamApi.normalizeBase(url)
-        } else if (!url.contains("://")) {
-            url = "http://$url"
+        } else {
+            url = Http.fixUrl(url)
         }
 
         val name = b.name.text.toString().trim().ifEmpty {

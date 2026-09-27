@@ -292,8 +292,9 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun buildAttempts(item: Channel): List<Pair<String, String?>> {
         val list = ArrayList<Pair<String, String?>>()
-        fun add(u: String?) {
-            if (u.isNullOrBlank()) return
+        fun add(raw: String?) {
+            if (raw.isNullOrBlank()) return
+            val u = Http.fixUrl(raw)
             val mime = guessMime(u)
             list += u to mime
             val path = u.lowercase().substringBefore('?')

@@ -195,8 +195,7 @@ class XtreamApi(private val profile: ServerProfile) {
     companion object {
         /** Accepts "host:port", "http://host:port/", or a full get.php / player_api.php link. */
         fun normalizeBase(raw: String): String {
-            var s = raw.trim()
-            if (!s.startsWith("http://", true) && !s.startsWith("https://", true)) s = "http://$s"
+            var s = Http.fixUrl(raw)
             s = s.substringBefore('?').trimEnd('/')
             for (suffix in listOf("/player_api.php", "/get.php", "/xmltv.php", "/panel_api.php")) {
                 if (s.endsWith(suffix, ignoreCase = true)) s = s.dropLast(suffix.length)

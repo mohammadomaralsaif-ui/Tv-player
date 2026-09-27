@@ -502,6 +502,7 @@ const Demo = (() => {
 function Xtream(srv) {
   let base = srv.url.trim();
   if (!/^https?:\/\//i.test(base)) base = 'http://' + base;
+  base = base.replace(/^https:\/\/([^\/?#]+):80(?=[\/?#]|$)/i, 'http://$1:80');
   base = base.split('?')[0].replace(/\/+$/, '').replace(/\/(player_api|get|xmltv|panel_api)\.php$/i, '');
   const u = srv.user, p = srv.pass, fmt = srv.fmt || 'm3u8';
   const api = (a, extra = '') => `${base}/player_api.php?username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}${a ? '&action=' + a : ''}${extra}`;
