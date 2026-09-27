@@ -48,6 +48,7 @@ class SettingsActivity : AppCompatActivity() {
             Library.clear()
             Toast.makeText(this, "انمسحت الذاكرة المؤقتة. القوائم رح تتحمّل من جديد", Toast.LENGTH_SHORT).show()
         }
+        b.checkUpdate.setOnClickListener { Updater.check(this, manual = true) }
         b.about.text = "TV Player ${BuildConfig.VERSION_NAME}  •  هذا الجهاز: ${if (Device.isTv(this)) "تلفزيون / TV Box" else "موبايل / تابلت"}"
         refresh()
         b.pin.requestFocus()

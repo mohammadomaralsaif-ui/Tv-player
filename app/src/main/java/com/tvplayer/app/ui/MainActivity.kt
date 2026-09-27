@@ -42,6 +42,8 @@ class MainActivity : AppCompatActivity() {
                     askingPin = false
                     Pin.appUnlocked = true
                     b.root.visibility = android.view.View.VISIBLE
+        Updater.resumePending(this)
+        Updater.check(this, manual = false)
                     onResume()
                 }
             }

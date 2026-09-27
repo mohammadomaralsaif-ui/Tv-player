@@ -15,6 +15,8 @@ android {
         val build = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
         versionCode = build
         versionName = "1.$build"
+        // Where the app looks for updates (GitHub releases of this repository).
+        buildConfigField("String", "UPDATE_REPO", "\"${System.getenv("GITHUB_REPOSITORY") ?: "mohammadomaralsaif-ui/Tv-player"}\"")
     }
 
     // Permanent release key. The keystore file is encrypted with SIGNING_PASSWORD,

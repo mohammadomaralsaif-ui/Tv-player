@@ -53,6 +53,9 @@
         <TextView style="@style/SettingsHeader" android:text="البيانات" />
         <Button android:id="@+id/clearCache" style="@style/SettingsRow" android:text="🧹  مسح الذاكرة المؤقتة (إعادة تحميل القوائم من السيرفر)" />
 
+        <TextView style="@style/SettingsHeader" android:text="التطبيق" />
+        <Button android:id="@+id/checkUpdate" style="@style/SettingsRow" android:text="⬆  التحقق من التحديثات" />
+
         <TextView
             android:id="@+id/about"
             android:layout_width="match_parent"
