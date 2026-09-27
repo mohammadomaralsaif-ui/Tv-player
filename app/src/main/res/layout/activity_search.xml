@@ -27,10 +27,10 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal">
 
-        <Button android:id="@+id/fAll" style="@style/TvButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="الكل" />
-        <Button android:id="@+id/fLive" style="@style/TvButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:text="📺 مباشر" />
-        <Button android:id="@+id/fMovies" style="@style/TvButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:text="🎬 أفلام" />
-        <Button android:id="@+id/fSeries" style="@style/TvButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:text="🎞 مسلسلات" />
+        <Button android:id="@+id/fAll" style="@style/Pill" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="الكل" />
+        <Button android:id="@+id/fLive" style="@style/Pill" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:text="📺 مباشر" />
+        <Button android:id="@+id/fMovies" style="@style/Pill" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:text="🎬 أفلام" />
+        <Button android:id="@+id/fSeries" style="@style/Pill" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:text="🎞 مسلسلات" />
     </LinearLayout>
     </HorizontalScrollView>
 

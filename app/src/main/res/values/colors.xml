@@ -1,11 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="icon_bg">#0B1220</color>
-    <color name="bg">#0E1117</color>
-    <color name="surface">#1A1F2B</color>
-    <color name="accent">#2E7DFF</color>
-    <color name="accent_dim">#1E3A66</color>
-    <color name="text">#FFFFFF</color>
-    <color name="text_dim">#9AA4B2</color>
+    <!-- Deep night-blue palette -->
+    <color name="bg">#080B12</color>
+    <color name="bg_top">#101A30</color>
+    <color name="surface">#141B28</color>
+    <color name="surface2">#1C2536</color>
+    <color name="line">#263147</color>
+    <color name="accent">#3D8BFF</color>
+    <color name="accent2">#6E5BFF</color>
+    <color name="accent_dim">#1B2E55</color>
+    <color name="accent_text">#A9CBFF</color>
+    <color name="text">#F2F5FA</color>
+    <color name="text_dim">#8C98AB</color>
+    <color name="live">#FF4757</color>
+    <color name="gold">#FFC53D</color>
     <color name="overlay">#B3000000</color>
 </resources>

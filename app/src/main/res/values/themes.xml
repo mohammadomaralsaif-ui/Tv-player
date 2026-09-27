@@ -2,13 +2,31 @@
 <resources>
     <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
         <item name="colorPrimary">@color/accent</item>
-        <item name="colorPrimaryDark">@color/bg</item>
+        <item name="colorPrimaryDark">@color/bg_top</item>
         <item name="colorAccent">@color/accent</item>
-        <item name="android:windowBackground">@color/bg</item>
+        <item name="colorControlNormal">@color/text_dim</item>
+        <item name="colorControlActivated">@color/accent</item>
+        <item name="android:windowBackground">@drawable/bg_app</item>
         <item name="android:textColorPrimary">@color/text</item>
         <item name="android:textColorSecondary">@color/text_dim</item>
-        <item name="android:statusBarColor">@color/bg</item>
+        <item name="android:statusBarColor">@color/bg_top</item>
         <item name="android:navigationBarColor">@color/bg</item>
+        <!-- Arabic-friendly font everywhere -->
+        <item name="android:fontFamily">@font/app_font</item>
+        <item name="fontFamily">@font/app_font</item>
+        <item name="alertDialogTheme">@style/AppDialog</item>
+        <item name="android:alertDialogTheme">@style/AppDialog</item>
+    </style>
+
+    <style name="AppDialog" parent="Theme.AppCompat.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/bg_dialog</item>
+        <item name="colorAccent">@color/accent_text</item>
+        <item name="colorControlActivated">@color/accent</item>
+        <item name="android:textColorPrimary">@color/text</item>
+        <item name="android:textColorSecondary">@color/text_dim</item>
+        <item name="android:textColor">@color/text</item>
+        <item name="android:fontFamily">@font/app_font</item>
+        <item name="fontFamily">@font/app_font</item>
     </style>
 
     <style name="PlayerTheme" parent="AppTheme">
@@ -18,13 +36,25 @@
 
     <style name="TvButton" parent="Widget.AppCompat.Button">
         <item name="android:background">@drawable/bg_focus</item>
-        <item name="android:textColor">@color/text</item>
-        <item name="android:textSize">16sp</item>
-        <item name="android:paddingStart">20dp</item>
-        <item name="android:paddingEnd">20dp</item>
-        <item name="android:minHeight">48dp</item>
+        <item name="android:textColor">@color/button_text</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:paddingStart">18dp</item>
+        <item name="android:paddingEnd">18dp</item>
+        <item name="android:minHeight">46dp</item>
+        <item name="android:minWidth">0dp</item>
         <item name="android:textAllCaps">false</item>
         <item name="android:focusable">true</item>
+        <item name="android:stateListAnimator">@null</item>
+        <item name="android:fontFamily">@font/app_font</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <!-- Rounded "pill" buttons: tabs, chips, player controls -->
+    <style name="Pill" parent="TvButton">
+        <item name="android:background">@drawable/bg_pill</item>
+        <item name="android:minHeight">42dp</item>
+        <item name="android:paddingStart">20dp</item>
+        <item name="android:paddingEnd">20dp</item>
     </style>
 
     <style name="SettingsRow" parent="TvButton">

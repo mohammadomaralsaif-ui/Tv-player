@@ -2,34 +2,40 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="4dp"
+    android:layout_marginBottom="6dp"
     android:background="@drawable/bg_focus"
     android:clickable="true"
     android:focusable="true"
     android:gravity="center_vertical"
+    android:minHeight="64dp"
     android:orientation="horizontal"
-    android:padding="8dp">
+    android:paddingStart="10dp"
+    android:paddingTop="8dp"
+    android:paddingEnd="12dp"
+    android:paddingBottom="8dp">
 
     <TextView
         android:id="@+id/number"
-        android:layout_width="44dp"
+        android:layout_width="38dp"
         android:layout_height="wrap_content"
         android:gravity="center"
         android:textColor="@color/text_dim"
-        android:textSize="13sp" />
+        android:textSize="13sp"
+        android:textStyle="bold" />
 
     <ImageView
         android:id="@+id/logo"
+        android:layout_width="72dp"
+        android:layout_height="46dp"
         android:background="@drawable/bg_poster"
-        android:layout_width="56dp"
-        android:layout_height="40dp"
         android:contentDescription="@null"
+        android:padding="4dp"
         android:scaleType="fitCenter" />
 
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="12dp"
+        android:layout_marginStart="14dp"
         android:layout_weight="1"
         android:orientation="vertical">
 
@@ -40,7 +46,8 @@
             android:ellipsize="end"
             android:singleLine="true"
             android:textColor="@color/text"
-            android:textSize="16sp" />
+            android:textSize="16sp"
+            android:textStyle="bold" />
 
         <TextView
             android:id="@+id/sub"
@@ -56,9 +63,26 @@
             style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="match_parent"
             android:layout_height="4dp"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="5dp"
             android:max="100"
+            android:progressBackgroundTint="@color/line"
             android:progressTint="@color/accent"
             android:visibility="gone" />
     </LinearLayout>
+
+    <TextView
+        android:id="@+id/badge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:background="@drawable/bg_live"
+        android:paddingStart="6dp"
+        android:paddingTop="2dp"
+        android:paddingEnd="6dp"
+        android:paddingBottom="2dp"
+        android:text="LIVE"
+        android:textColor="#FFFFFF"
+        android:textSize="10sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
 </LinearLayout>

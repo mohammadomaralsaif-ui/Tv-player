@@ -30,6 +30,7 @@ class ProfileAdapter(
     class VH(v: View) : RecyclerView.ViewHolder(v) {
         val name: TextView = v.findViewById(R.id.name)
         val sub: TextView = v.findViewById(R.id.sub)
+        val icon: TextView = v.findViewById(R.id.icon)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
@@ -44,9 +45,14 @@ class ProfileAdapter(
         val p = items[position]
         h.name.text = p.name
         h.sub.text = when (p.type) {
-            ServerType.XTREAM -> "📡  Xtream Codes • ${p.username}"
-            ServerType.M3U -> "📋  قائمة M3U"
-            ServerType.DIRECT -> "🔗  رابط بث مباشر"
+            ServerType.XTREAM -> "Xtream Codes • ${p.username}"
+            ServerType.M3U -> "قائمة M3U"
+            ServerType.DIRECT -> "رابط بث مباشر"
+        }
+        h.icon.text = when (p.type) {
+            ServerType.XTREAM -> "📡"
+            ServerType.M3U -> "📋"
+            ServerType.DIRECT -> "▶"
         }
         h.itemView.setOnClickListener { onClick(p) }
         h.itemView.setOnLongClickListener { onLongClick(p); true }
@@ -132,6 +138,7 @@ class ChannelAdapter(
         val sub: TextView = v.findViewById(R.id.sub)
         val progress: ProgressBar = v.findViewById(R.id.progress)
         val number: TextView? = v.findViewById(R.id.number)
+        val badge: TextView? = v.findViewById(R.id.badge)
     }
 
     override fun getItemViewType(position: Int) = if (grid) 1 else 0
@@ -162,9 +169,19 @@ class ChannelAdapter(
         h.number?.text = (position + 1).toString()
         h.number?.visibility = if (showNumbers) View.VISIBLE else View.GONE
 
-        val sub = subtitleOf(c)
+        val sub = if (getItemViewType(position) == 1 && c.rating.isNotBlank()) c.year.ifBlank { null } else subtitleOf(c)
         h.sub.text = sub
         h.sub.visibility = if (sub.isNullOrBlank()) View.GONE else View.VISIBLE
+
+        // Poster: rating badge. List row: red LIVE tag on live channels.
+        h.badge?.let { badge ->
+            if (getItemViewType(position) == 1) {
+                badge.text = if (c.rating.isNotBlank()) "★ ${c.rating}" else ""
+                badge.visibility = if (c.rating.isNotBlank()) View.VISIBLE else View.GONE
+            } else {
+                badge.visibility = if (c.kind == ItemKind.LIVE) View.VISIBLE else View.GONE
+            }
+        }
 
         val pct = progressOf(c)
         h.progress.visibility = if (pct != null && pct > 0) View.VISIBLE else View.GONE
@@ -223,18 +240,39 @@ class HomeAdapter(
     private val progressOf: (Channel) -> Int?,
 ) : RecyclerView.Adapter<HomeAdapter.VH>() {
 
-    class Row(val title: String, val items: List<Channel>, val tiles: Boolean = false)
+    /** [hero] = the big featured card at the top (uses the first item). */
+    class Row(val title: String, val items: List<Channel>, val tiles: Boolean = false, val hero: Boolean = false, val subtitle: String? = null)
 
     private var rows: List<Row> = emptyList()
 
     fun submit(list: List<Row>) { rows = list; notifyDataSetChanged() }
 
-    class VH(v: View, val title: TextView, val list: RecyclerView, val adapter: ChannelAdapter) : RecyclerView.ViewHolder(v)
+    open class VH(v: View) : RecyclerView.ViewHolder(v)
+    class RowVH(v: View, val title: TextView, val list: RecyclerView, val adapter: ChannelAdapter) : VH(v)
+    class HeroVH(v: View) : VH(v) {
+        val backdrop: ImageView = v.findViewById(R.id.heroBackdrop)
+        val poster: ImageView = v.findViewById(R.id.heroPoster)
+        val label: TextView = v.findViewById(R.id.heroLabel)
+        val title: TextView = v.findViewById(R.id.heroTitle)
+        val sub: TextView = v.findViewById(R.id.heroSub)
+        val progress: ProgressBar = v.findViewById(R.id.heroProgress)
+        val play: android.widget.Button = v.findViewById(R.id.heroPlay)
+    }
 
     override fun getItemCount() = rows.size
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val ctx = parent.context
+        if (viewType == 2) {
+            val v = LayoutInflater.from(ctx).inflate(R.layout.item_hero, parent, false)
+            v.findViewById<ImageView>(R.id.heroPoster).clipToOutline = true
+            v.clipToOutline = true
+            if (Device.isNarrow(ctx)) {
+                v.layoutParams.height = (200 * ctx.resources.displayMetrics.density).toInt()
+                v.findViewById<ImageView>(R.id.heroPoster).visibility = View.GONE
+            }
+            return HeroVH(v)
+        }
         val d = ctx.resources.displayMetrics.density
         val box = android.widget.LinearLayout(ctx).apply {
             orientation = android.widget.LinearLayout.VERTICAL
@@ -260,16 +298,36 @@ class HomeAdapter(
         }
         box.addView(title)
         box.addView(list, android.widget.LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        return VH(box, title, list, adapter)
+        return RowVH(box, title, list, adapter)
     }
 
-    override fun onBindViewHolder(h: VH, position: Int) {
+    override fun onBindViewHolder(holder: VH, position: Int) {
         val row = rows[position]
+        if (holder is HeroVH) {
+            val item = row.items.firstOrNull() ?: return
+            holder.label.text = row.title
+            holder.title.text = item.seriesName ?: item.name
+            holder.sub.text = row.subtitle ?: ChannelAdapter.defaultSubtitle(item) ?: ""
+            val pct = progressOf(item)
+            holder.progress.visibility = if (pct != null && pct > 0) View.VISIBLE else View.GONE
+            holder.progress.progress = pct ?: 0
+            holder.backdrop.load(item.logo)
+            holder.poster.load(item.logo) { placeholder(R.drawable.ic_tv); error(R.drawable.ic_tv) }
+            holder.play.text = if (pct != null && pct > 0) "▶  كمّل المشاهدة" else "▶  شاهد الآن"
+            holder.play.setOnClickListener { onClick(row.items, 0) }
+            holder.itemView.setOnClickListener { onClick(row.items, 0) }
+            return
+        }
+        val h = holder as RowVH
         h.title.text = row.title
         h.adapter.submit(row.items)
         h.list.isVisible = row.items.isNotEmpty()
         h.list.scrollToPosition(0)
     }
 
-    override fun getItemViewType(position: Int) = if (rows[position].tiles) 1 else 0
+    override fun getItemViewType(position: Int) = when {
+        rows[position].hero -> 2
+        rows[position].tiles -> 1
+        else -> 0
+    }
 }

@@ -44,7 +44,7 @@
 
         <Button
             android:id="@+id/btnAspect"
-            style="@style/TvButton"
+            style="@style/Pill"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
@@ -53,14 +53,14 @@
 
         <Button
             android:id="@+id/btnList"
-            style="@style/TvButton"
+            style="@style/Pill"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp" />
 
         <Button
             android:id="@+id/btnSettings"
-            style="@style/TvButton"
+            style="@style/Pill"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"

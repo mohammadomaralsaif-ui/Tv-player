@@ -182,6 +182,8 @@ class BrowserActivity : AppCompatActivity() {
             val c = e.channel
             if (c.kind == ItemKind.EPISODE && c.seriesName != null) c.copy(name = "${c.seriesName} • ${c.name.substringBefore(" •")}") else c
         })
+        // Big featured card: what you were watching, or (below) the newest movie.
+        cw.firstOrNull()?.let { rows += HomeAdapter.Row("▶ كمّل من حيث وقفت", listOf(it), hero = true) }
         if (cw.isNotEmpty()) rows += HomeAdapter.Row("▶ متابعة المشاهدة", cw)
         val favs = visible(store.favorites(profile.id))
         favs.filter { it.kind != ItemKind.LIVE }.takeIf { it.isNotEmpty() }?.let { rows += HomeAdapter.Row("⭐ المفضلة", it) }
@@ -195,7 +197,10 @@ class BrowserActivity : AppCompatActivity() {
                 if (xt) {
                     val api = xtream ?: return@launch
                     val movies = allOf(api, Section.MOVIES)
-                    newest(movies)?.let { rows += HomeAdapter.Row("🆕 أحدث الأفلام", it) }
+                    newest(movies)?.let {
+                        if (rows.none { r -> r.hero }) rows.add(0, HomeAdapter.Row("🆕 جديد على السيرفر", listOf(it.first()), hero = true))
+                        rows += HomeAdapter.Row("🆕 أحدث الأفلام", it)
+                    }
                     homeAdapter.submit(rows.toList())
                     val series = allOf(api, Section.SERIES)
                     newest(series)?.let { rows += HomeAdapter.Row("🆕 أحدث المسلسلات", it) }

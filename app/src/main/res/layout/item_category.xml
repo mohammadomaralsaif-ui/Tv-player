@@ -2,29 +2,36 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="4dp"
-    android:background="@drawable/bg_focus"
+    android:layout_marginBottom="2dp"
+    android:background="@drawable/bg_category"
     android:clickable="true"
     android:focusable="true"
     android:gravity="center_vertical"
+    android:minHeight="44dp"
     android:orientation="horizontal"
-    android:padding="12dp">
+    android:paddingStart="14dp"
+    android:paddingTop="10dp"
+    android:paddingEnd="14dp"
+    android:paddingBottom="10dp">
 
     <TextView
         android:id="@+id/name"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
+        android:duplicateParentState="true"
         android:ellipsize="end"
         android:singleLine="true"
-        android:textColor="@color/text"
-        android:textSize="15sp" />
+        android:textColor="@color/cat_text"
+        android:textSize="15sp"
+        android:textStyle="bold" />
 
     <TextView
         android:id="@+id/count"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
-        android:textColor="@color/text_dim"
+        android:duplicateParentState="true"
+        android:textColor="@color/cat_text"
         android:textSize="12sp" />
 </LinearLayout>

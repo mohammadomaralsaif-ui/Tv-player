@@ -20,7 +20,7 @@
             android:ellipsize="end"
             android:singleLine="true"
             android:textColor="@color/text"
-            android:textSize="22sp"
+            android:textSize="24sp"
             android:textStyle="bold" />
 
         <Button
@@ -55,14 +55,14 @@
 
             <Button
                 android:id="@+id/tabHome"
-                style="@style/TvButton"
+                style="@style/Pill"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="🏠 الرئيسية" />
 
             <Button
                 android:id="@+id/tabLive"
-                style="@style/TvButton"
+                style="@style/Pill"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
@@ -70,7 +70,7 @@
 
             <Button
                 android:id="@+id/tabMovies"
-                style="@style/TvButton"
+                style="@style/Pill"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
@@ -78,7 +78,7 @@
 
             <Button
                 android:id="@+id/tabSeries"
-                style="@style/TvButton"
+                style="@style/Pill"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
