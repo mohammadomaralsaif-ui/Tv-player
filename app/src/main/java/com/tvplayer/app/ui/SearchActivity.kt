@@ -93,8 +93,10 @@ class SearchActivity : AppCompatActivity() {
             try {
                 everything = if (profile.type == ServerType.XTREAM) {
                     val api = XtreamApi(profile)
-                    suspend fun all(s: Section): List<Channel> =
-                        Library.items["${s.name}:*"] ?: api.items(s, null).also { Library.items["${s.name}:*"] = it }
+                    suspend fun all(s: Section): List<Channel> {
+                        if (Library.categories[s] == null) Library.categories[s] = api.categories(s)
+                        return Library.items["${s.name}:*"] ?: api.items(s, null).also { Library.items["${s.name}:*"] = it }
+                    }
                     // Load the three sections in parallel; a failing one doesn't block the others.
                     val live = async { runCatching { all(Section.LIVE) }.getOrDefault(emptyList()) }
                     val movies = async { runCatching { all(Section.MOVIES) }.getOrDefault(emptyList()) }
@@ -106,6 +108,10 @@ class SearchActivity : AppCompatActivity() {
                         Library.m3u = withContext(Dispatchers.Default) { M3uParser.parse(text) }
                     }
                     Library.m3u
+                }
+                if (store.lockAdult && !Pin.adultUnlocked) {
+                    val xt = profile.type == ServerType.XTREAM
+                    everything = everything.filterNot { Pin.isAdultItem(it, xt) }
                 }
                 loaded = true
                 b.status.text = "جاهز — ${everything.size} عنصر"

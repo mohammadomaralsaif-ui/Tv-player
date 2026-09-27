@@ -68,6 +68,12 @@ class DetailsActivity : AppCompatActivity() {
         b.episodes.layoutManager = LinearLayoutManager(this)
         b.episodes.adapter = episodeAdapter
         b.seriesBlock.isVisible = isSeries
+        if (Device.isNarrow(this)) {
+            val d = resources.displayMetrics.density
+            b.poster.layoutParams.width = (110 * d).toInt()
+            b.poster.layoutParams.height = (165 * d).toInt()
+            b.title.textSize = 21f
+        }
 
         // Show what we already know right away, then fill in from the server.
         show(Details(title = item.seriesName ?: item.name, poster = item.logo, backdrop = null, rating = item.rating, release = item.year))

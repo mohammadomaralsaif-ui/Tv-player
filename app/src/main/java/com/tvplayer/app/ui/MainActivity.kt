@@ -27,10 +27,27 @@ class MainActivity : AppCompatActivity() {
         b.list.layoutManager = LinearLayoutManager(this)
         b.list.adapter = adapter
         b.btnAdd.setOnClickListener { startActivity(Intent(this, AddServerActivity::class.java)) }
+        b.btnSettings.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
     }
+
+    private var askingPin = false
 
     override fun onResume() {
         super.onResume()
+        if (store.lockApp && !Pin.appUnlocked) {
+            b.root.visibility = android.view.View.INVISIBLE
+            if (!askingPin) {
+                askingPin = true
+                Pin.ask(this, "🔒 أدخل رمز PIN", cancelable = false, onCancel = { finish() }) {
+                    askingPin = false
+                    Pin.appUnlocked = true
+                    b.root.visibility = android.view.View.VISIBLE
+                    onResume()
+                }
+            }
+            return
+        }
+        b.root.visibility = android.view.View.VISIBLE
         val list = store.all()
         adapter.submit(list)
         b.empty.isVisible = list.isEmpty()

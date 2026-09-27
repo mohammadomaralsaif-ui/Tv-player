@@ -9,6 +9,7 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
     <application
+        android:name=".App"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:banner="@drawable/banner"
@@ -38,6 +39,8 @@
             android:windowSoftInputMode="stateAlwaysHidden" />
 
         <activity android:name=".ui.DetailsActivity" />
+
+        <activity android:name=".ui.SettingsActivity" />
 
         <activity
             android:name=".ui.SearchActivity"

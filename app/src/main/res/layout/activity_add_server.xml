@@ -27,36 +27,59 @@
             android:text="@string/server_type"
             android:textColor="@color/text_dim" />
 
-        <RadioGroup
-            android:id="@+id/typeGroup"
+        <HorizontalScrollView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:checkedButton="@+id/rbXtream"
-            android:orientation="horizontal">
+            android:scrollbars="none">
 
-            <RadioButton
-                android:id="@+id/rbXtream"
+            <RadioGroup
+                android:id="@+id/typeGroup"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="16dp"
-                android:text="Xtream Codes"
-                android:textColor="@color/text" />
+                android:checkedButton="@+id/rbAuto"
+                android:orientation="horizontal">
 
-            <RadioButton
-                android:id="@+id/rbM3u"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="16dp"
-                android:text="M3U"
-                android:textColor="@color/text" />
+                <RadioButton
+                    android:id="@+id/rbAuto"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="14dp"
+                    android:text="✨ تلقائي"
+                    android:textColor="@color/text" />
 
-            <RadioButton
-                android:id="@+id/rbDirect"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="رابط مباشر"
-                android:textColor="@color/text" />
-        </RadioGroup>
+                <RadioButton
+                    android:id="@+id/rbXtream"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="14dp"
+                    android:text="Xtream Codes"
+                    android:textColor="@color/text" />
+
+                <RadioButton
+                    android:id="@+id/rbM3u"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="14dp"
+                    android:text="M3U"
+                    android:textColor="@color/text" />
+
+                <RadioButton
+                    android:id="@+id/rbDirect"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="رابط مباشر"
+                    android:textColor="@color/text" />
+            </RadioGroup>
+        </HorizontalScrollView>
+
+        <TextView
+            android:id="@+id/autoHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="الصق الرابط (ومعه اسم المستخدم وكلمة المرور إذا عندك)، والتطبيق بيعرف نوعه لحاله."
+            android:textColor="@color/text_dim"
+            android:textSize="12sp" />
 
         <EditText
             android:id="@+id/name"
@@ -175,5 +198,13 @@
                 android:layout_marginStart="16dp"
                 android:visibility="gone" />
         </LinearLayout>
+        <TextView
+            android:id="@+id/detectStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textColor="@color/accent"
+            android:textSize="14sp"
+            android:visibility="gone" />
     </LinearLayout>
 </ScrollView>

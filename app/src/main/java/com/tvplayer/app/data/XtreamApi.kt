@@ -47,14 +47,14 @@ class XtreamApi(private val profile: ServerProfile) {
 
     /** The server's own categories for a section, in the server's order. */
     suspend fun categories(section: Section): List<Category> =
-        parseArray(Http.get(apiUrl(section.catAction), ua)).map {
+        parseArray(Http.getCached(apiUrl(section.catAction), ua)).map {
             Category(it.str("category_id"), it.str("category_name").ifBlank { "—" })
         }
 
     /** Items of one category, or of the whole section when [categoryId] is null. */
     suspend fun items(section: Section, categoryId: String?): List<Channel> {
         val extra = if (categoryId != null) "&category_id=${enc(categoryId)}" else ""
-        val arr = parseArray(Http.get(apiUrl(section.listAction, extra), ua))
+        val arr = parseArray(Http.getCached(apiUrl(section.listAction, extra), ua))
         return arr.mapNotNull { o ->
             val cat = o.str("category_id")
             when (section) {
@@ -94,7 +94,7 @@ class XtreamApi(private val profile: ServerProfile) {
     }
 
     suspend fun vodInfo(vodId: String): Details {
-        val o = runCatching { JSONObject(Http.get(apiUrl("get_vod_info", "&vod_id=${enc(vodId)}"), ua)) }
+        val o = runCatching { JSONObject(Http.getCached(apiUrl("get_vod_info", "&vod_id=${enc(vodId)}"), ua, 24 * 3600_000L)) }
             .getOrElse { throw IOException("تعذّر تحميل تفاصيل الفيلم") }
         val i = o.optJSONObject("info") ?: JSONObject()
         return Details(
@@ -112,7 +112,7 @@ class XtreamApi(private val profile: ServerProfile) {
     }
 
     suspend fun seriesInfo(seriesId: String): SeriesData {
-        val o = runCatching { JSONObject(Http.get(apiUrl("get_series_info", "&series_id=${enc(seriesId)}"), ua)) }
+        val o = runCatching { JSONObject(Http.getCached(apiUrl("get_series_info", "&series_id=${enc(seriesId)}"), ua, 3600_000L)) }
             .getOrElse { throw IOException("تعذّر تحميل حلقات المسلسل") }
         val i = o.optJSONObject("info") ?: JSONObject()
         val details = Details(

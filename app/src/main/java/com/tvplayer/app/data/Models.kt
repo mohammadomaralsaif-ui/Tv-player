@@ -161,6 +161,13 @@ object Library {
     /** key = "SECTION:categoryId", or "SECTION:*" for everything in the section. */
     val items = HashMap<String, List<Channel>>()
 
+    fun clear() {
+        profileId = null
+        m3u = emptyList()
+        categories.clear()
+        items.clear()
+    }
+
     fun bind(id: String) {
         if (profileId != id) {
             profileId = id

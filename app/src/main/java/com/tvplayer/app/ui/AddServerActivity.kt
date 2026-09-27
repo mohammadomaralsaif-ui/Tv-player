@@ -10,6 +10,7 @@ import androidx.lifecycle.lifecycleScope
 import com.tvplayer.app.R
 import com.tvplayer.app.data.Http
 import com.tvplayer.app.data.ProfileStore
+import com.tvplayer.app.data.ServerDetector
 import com.tvplayer.app.data.ServerProfile
 import com.tvplayer.app.data.ServerType
 import com.tvplayer.app.data.XtreamApi
@@ -59,16 +60,22 @@ class AddServerActivity : AppCompatActivity() {
         b.btnCancel.setOnClickListener { finish() }
     }
 
-    private fun selectedType() = when (b.typeGroup.checkedRadioButtonId) {
+    /** null = detect automatically. */
+    private fun selectedType(): ServerType? = when (b.typeGroup.checkedRadioButtonId) {
+        R.id.rbXtream -> ServerType.XTREAM
         R.id.rbM3u -> ServerType.M3U
         R.id.rbDirect -> ServerType.DIRECT
-        else -> ServerType.XTREAM
+        else -> null
     }
 
     private fun updateFields() {
         val t = selectedType()
-        b.xtreamFields.isVisible = t == ServerType.XTREAM
+        b.xtreamFields.isVisible = t == null || t == ServerType.XTREAM
+        b.autoHint.isVisible = t == null
+        b.username.hint = if (t == null) "اسم المستخدم (إذا في)" else getString(R.string.username)
+        b.password.hint = if (t == null) "كلمة المرور (إذا في)" else getString(R.string.password)
         b.url.hint = when (t) {
+            null -> "الصق أي رابط: سيرفر، قائمة M3U، أو رابط بث"
             ServerType.XTREAM -> "رابط السيرفر  (مثال: http://example.com:8080)"
             ServerType.M3U -> "رابط قائمة M3U"
             ServerType.DIRECT -> "رابط البث (m3u8 / ts / mp4 / rtsp …)"
@@ -76,11 +83,46 @@ class AddServerActivity : AppCompatActivity() {
     }
 
     private fun save() {
-        val type = selectedType()
-        var url = b.url.text.toString().trim()
-        var user = b.username.text.toString().trim()
-        var pass = b.password.text.toString().trim()
+        val url = b.url.text.toString().trim()
+        val user = b.username.text.toString().trim()
+        val pass = b.password.text.toString().trim()
         if (url.isEmpty()) { b.url.error = "مطلوب"; b.url.requestFocus(); return }
+        val type = selectedType()
+        if (type != null) { saveAs(type, url, user, pass); return }
+
+        // Automatic: find out what the link is first.
+        b.progress.isVisible = true
+        b.btnSave.isEnabled = false
+        b.detectStatus.isVisible = true
+        b.detectStatus.text = "جاري فحص الرابط…"
+        lifecycleScope.launch {
+            try {
+                val r = ServerDetector.detect(url, user, pass, b.userAgent.text.toString().trim())
+                b.detectStatus.text = "اكتشفت: ${r.label} ✓"
+                b.typeGroup.check(
+                    when (r.type) {
+                        ServerType.XTREAM -> R.id.rbXtream
+                        ServerType.M3U -> R.id.rbM3u
+                        ServerType.DIRECT -> R.id.rbDirect
+                    }
+                )
+                b.progress.isVisible = false
+                b.btnSave.isEnabled = true
+                saveAs(r.type, r.url, r.username, r.password, alreadyChecked = true)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                b.progress.isVisible = false
+                b.btnSave.isEnabled = true
+                b.detectStatus.text = e.message ?: "ما قدرت أفحص الرابط"
+            }
+        }
+    }
+
+    private fun saveAs(type: ServerType, rawUrl: String, rawUser: String, rawPass: String, alreadyChecked: Boolean = false) {
+        var url = rawUrl
+        var user = rawUser
+        var pass = rawPass
 
         if (type == ServerType.XTREAM) {
             // If a full get.php?username=..&password=.. link was pasted, pull the credentials out of it.
@@ -110,8 +152,11 @@ class AddServerActivity : AppCompatActivity() {
             liveFormat = if (b.formatGroup.checkedRadioButtonId == R.id.rbTs) "ts" else "m3u8",
         )
 
-        if (type != ServerType.XTREAM) {
-            store.save(profile); finish(); return
+        if (type != ServerType.XTREAM || alreadyChecked) {
+            store.save(profile)
+            if (alreadyChecked) Toast.makeText(this, "انحفظ ✓", Toast.LENGTH_SHORT).show()
+            finish()
+            return
         }
 
         b.progress.isVisible = true

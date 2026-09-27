@@ -21,6 +21,41 @@ object Http {
             .build()
     }
 
+    private var cacheDir: java.io.File? = null
+
+    fun init(ctx: android.content.Context) {
+        cacheDir = java.io.File(ctx.cacheDir, "api").apply { mkdirs() }
+    }
+
+    private fun cacheFile(url: String): java.io.File? {
+        val dir = cacheDir ?: return null
+        val hash = java.security.MessageDigest.getInstance("SHA-256").digest(url.toByteArray())
+            .joinToString("") { "%02x".format(it) }
+        return java.io.File(dir, hash)
+    }
+
+    /**
+     * Like [get], but keeps a copy on the device: lists open instantly next time,
+     * and still open (from the saved copy) if the server is down.
+     */
+    suspend fun getCached(url: String, userAgent: String?, maxAgeMs: Long = 6 * 3600_000L): String = withContext(Dispatchers.IO) {
+        val f = cacheFile(url)
+        if (f != null && f.exists() && System.currentTimeMillis() - f.lastModified() < maxAgeMs) {
+            runCatching { return@withContext f.readText() }
+        }
+        try {
+            get(url, userAgent).also { t -> if (f != null && t.isNotBlank()) runCatching { f.writeText(t) } }
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            if (f != null && f.exists()) f.readText() else throw e
+        }
+    }
+
+    /** Forgets all saved server lists (the "refresh" button). */
+    fun clearCache() {
+        cacheDir?.listFiles()?.forEach { it.delete() }
+    }
+
     fun ua(custom: String?): String = custom?.takeIf { it.isNotBlank() } ?: DEFAULT_UA
 
     private val HTTPS_PORT_80 = Regex("^https://([^/?#]+):80(?=[/?#]|$)", RegexOption.IGNORE_CASE)
@@ -36,13 +71,34 @@ object Http {
     }
 
     suspend fun get(url: String, userAgent: String?): String = withContext(Dispatchers.IO) {
-        val fixed = fixUrl(url)
-        try {
-            fetch(fixed, userAgent)
-        } catch (e: javax.net.ssl.SSLException) {
-            // Server doesn't actually speak https on this address: retry over plain http.
-            if (fixed.startsWith("https://", true)) fetch("http://" + fixed.substring(8), userAgent) else throw e
+        withHttpFallback(fixUrl(url)) { fetch(it, userAgent) }
+    }
+
+    /** Reads just the start of a link: returns (Content-Type, first ~16 KB as text). */
+    suspend fun peek(url: String, userAgent: String?): Pair<String, String> = withContext(Dispatchers.IO) {
+        withHttpFallback(fixUrl(url)) { u ->
+            val req = Request.Builder().url(u).header("User-Agent", ua(userAgent)).build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) throw IOException("السيرفر رد بخطأ HTTP ${resp.code}")
+                val type = resp.header("Content-Type").orEmpty().lowercase()
+                val buf = okio.Buffer()
+                val src = resp.body?.source()
+                if (src != null) {
+                    var tries = 0
+                    while (buf.size < 16_384 && tries++ < 8) {
+                        if (src.read(buf, 16_384 - buf.size) == -1L) break
+                    }
+                }
+                type to buf.readString(Charsets.UTF_8)
+            }
         }
+    }
+
+    /** Server doesn't actually speak https on this address: retry once over plain http. */
+    private inline fun <T> withHttpFallback(url: String, block: (String) -> T): T = try {
+        block(url)
+    } catch (e: javax.net.ssl.SSLException) {
+        if (url.startsWith("https://", true)) block("http://" + url.substring(8)) else throw e
     }
 
     private fun fetch(url: String, userAgent: String?): String {
