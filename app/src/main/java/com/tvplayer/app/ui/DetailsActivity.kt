@@ -63,16 +63,29 @@ class DetailsActivity : AppCompatActivity() {
             onClick = { _, pos -> playEpisode(visibleEpisodes()[pos], PlayerQueue.RESUME) },
             onLongClick = { ep -> Nav.itemOptions(this, store, profile, ep) { refreshState() } },
             progressOf = { ep -> store.progressFor(profile.id, ep)?.percent },
-            subtitleOf = { null },
-        )
+            subtitleOf = { ep ->
+                val w = store.progressFor(profile.id, ep)
+                val left = if (w != null && w.duration > 0) "باقي ${((w.duration - w.position) / 60_000).coerceAtLeast(1)} د" else null
+                listOfNotNull(ep.duration.ifBlank { null }, left).joinToString("  •  ").ifBlank { null }
+            },
+        ).apply { episodeRows = true }
         b.episodes.layoutManager = LinearLayoutManager(this)
         b.episodes.adapter = episodeAdapter
         b.seriesBlock.isVisible = isSeries
         if (Device.isNarrow(this)) {
+            // Phone: art as a header behind the title, big full-width play button.
             val d = resources.displayMetrics.density
-            b.poster.layoutParams.width = (110 * d).toInt()
-            b.poster.layoutParams.height = (165 * d).toInt()
-            b.title.textSize = 21f
+            b.poster.visibility = android.view.View.GONE
+            b.title.textSize = 26f
+            (b.title.parent as? android.view.View)?.setPadding(0, (150 * d).toInt(), 0, 0)
+            b.actions.orientation = android.widget.LinearLayout.VERTICAL
+            listOf(b.btnPlay, b.btnRestart, b.btnFav).forEach { btn ->
+                btn.layoutParams = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = (8 * d).toInt() }
+            }
+            b.backdrop.alpha = 0.7f
         }
 
         // Show what we already know right away, then fill in from the server.
@@ -146,7 +159,7 @@ class DetailsActivity : AppCompatActivity() {
         b.cast.text = people.joinToString("\n")
         b.cast.isVisible = people.isNotEmpty()
         if (!d.poster.isNullOrBlank()) b.poster.load(d.poster) { placeholder(R.drawable.ic_tv); error(R.drawable.ic_tv) }
-        if (!d.backdrop.isNullOrBlank()) b.backdrop.load(d.backdrop)
+        (d.backdrop ?: d.poster)?.takeIf { it.isNotBlank() }?.let { b.backdrop.load(it) }
     }
 
     // ---------- seasons ----------

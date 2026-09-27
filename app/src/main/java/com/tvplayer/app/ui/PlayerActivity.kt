@@ -45,6 +45,7 @@ import com.tvplayer.app.data.Http
 import com.tvplayer.app.data.ItemKind
 import com.tvplayer.app.data.PlayerQueue
 import com.tvplayer.app.data.ProfileStore
+import androidx.lifecycle.lifecycleScope
 import com.tvplayer.app.databinding.ActivityPlayerBinding
 import java.util.Locale
 
@@ -91,6 +92,74 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var b: ActivityPlayerBinding
     private lateinit var store: ProfileStore
     private lateinit var listAdapter: ChannelAdapter
+    private lateinit var stripAdapter: ChannelAdapter
+
+    /** Guide for live channels (Xtream servers only). */
+    private val epgApi by lazy {
+        profileId?.let { ProfileStore(this).get(it) }?.takeIf { it.type == com.tvplayer.app.data.ServerType.XTREAM }?.let { com.tvplayer.app.data.XtreamApi(it) }
+    }
+
+    private fun showsEpisodes() = items.size > 1 && items.getOrNull(index)?.kind == ItemKind.EPISODE
+
+    /** Current values on the top-bar buttons: subtitles and quality. */
+    private fun updateChips() {
+        val narrow = Device.isNarrow(this)
+        val subs = tracksOf(C.TRACK_TYPE_TEXT, includeUnsupported = true)
+        val off = exo?.trackSelectionParameters?.disabledTrackTypes?.contains(C.TRACK_TYPE_TEXT) == true
+        val subNow = when {
+            subs.isEmpty() -> "—"
+            off -> "إيقاف"
+            else -> subs.firstOrNull { it.selected }?.label?.substringBefore(" •")?.substringBefore("  ⚠") ?: "إيقاف"
+        }
+        b.btnSubs.text = if (narrow) "CC" else "الترجمة: $subNow"
+        val h = exo?.videoSize?.height ?: 0
+        b.btnQuality.text = if (h > 0) "${h}p" else "الجودة"
+    }
+
+    /** Title / second line: series + episode, or channel + what's on now. */
+    private fun updateTitles() {
+        val item = items.getOrNull(index) ?: return
+        when {
+            item.kind == ItemKind.EPISODE && item.seriesName != null -> {
+                b.title.text = item.seriesName
+                b.subtitle.text = item.name
+                b.subtitle.visibility = View.VISIBLE
+            }
+            item.kind == ItemKind.LIVE -> {
+                b.title.text = if (items.size > 1) "${index + 1}   ${item.name}" else item.name
+                val pid = profileId
+                val now = if (pid != null) com.tvplayer.app.data.Epg.now(pid, item.id) else null
+                b.subtitle.text = now?.let { "الآن: ${it.title}  (${it.timeRange()})" }.orEmpty()
+                b.subtitle.visibility = if (now != null) View.VISIBLE else View.GONE
+            }
+            else -> {
+                b.title.text = item.name
+                b.subtitle.visibility = View.GONE
+            }
+        }
+    }
+
+    private fun loadEpg(item: Channel) {
+        val api = epgApi ?: return
+        val pid = profileId ?: return
+        if (item.kind != ItemKind.LIVE) return
+        com.tvplayer.app.data.Epg.request(lifecycleScope, api, pid, item.id) {
+            if (items.getOrNull(index)?.url == item.url) {
+                updateTitles()
+                com.tvplayer.app.data.Epg.now(pid, item.id)?.let { showInfo("${index + 1}   ${item.name}\nالآن: ${it.title}") }
+            }
+        }
+    }
+
+    // ---------- typing a channel number on the remote ----------
+
+    private var numberBuffer = ""
+    private val numberRunnable = Runnable {
+        val n = numberBuffer.toIntOrNull()
+        numberBuffer = ""
+        if (n != null && n in 1..items.size) startItem(n - 1, PlayerQueue.RESUME)
+        else if (n != null) showInfo("ما في قناة رقم $n")
+    }
     private var exo: ExoPlayer? = null
     private val handler = Handler(Looper.getMainLooper())
 
@@ -157,6 +226,7 @@ class PlayerActivity : AppCompatActivity() {
                     player = { exo },
                     isLive = { isLive() },
                     osd = { showInfo(it) },
+                    level = { volume, pct -> showLevel(volume, pct) },
                     toggleControls = {
                         if (b.listPanel.isVisible) closeList()
                         else if (b.playerView.isControllerFullyVisible) b.playerView.hideController()
@@ -169,8 +239,18 @@ class PlayerActivity : AppCompatActivity() {
         if (!Device.isTv(this)) requestedOrientation = ORIENTATIONS[store.orientation.coerceIn(0, ORIENTATIONS.size - 1)].second
         b.btnAspect.setOnClickListener { cycleResize() }
         b.playerView.setControllerVisibilityListener(
-            PlayerView.ControllerVisibilityListener { v -> if (!b.listPanel.isVisible) b.topBar.visibility = v }
+            PlayerView.ControllerVisibilityListener { v ->
+                if (!b.listPanel.isVisible) {
+                    b.topBar.visibility = v
+                    if (v == View.VISIBLE) updateChips()
+                    val showStrip = v == View.VISIBLE && showsEpisodes()
+                    b.episodesBar.visibility = if (showStrip) View.VISIBLE else View.GONE
+                    if (showStrip) b.episodesStrip.scrollToPosition(index)
+                }
+            }
         )
+        b.btnSubs.setOnClickListener { chooseSubtitle() }
+        b.btnQuality.setOnClickListener { chooseQuality() }
         applySubtitleStyle()
 
         b.btnBack.setOnClickListener { finish() }
@@ -186,6 +266,22 @@ class PlayerActivity : AppCompatActivity() {
         )
         b.listItems.layoutManager = LinearLayoutManager(this)
         b.listItems.adapter = listAdapter
+
+        // Series: the episodes strip shown with the controls.
+        stripAdapter = ChannelAdapter(
+            onClick = { _, pos -> if (pos != index) startItem(pos, PlayerQueue.RESUME) },
+            onLongClick = {},
+            progressOf = { c -> profileId?.let { store.progressFor(it, c)?.percent } },
+            subtitleOf = { c -> c.duration.ifBlank { null } },
+        ).apply {
+            grid = true
+            landscape = true
+            fixedWidthPx = ((if (Device.isNarrow(this@PlayerActivity)) 170 else 220) * resources.displayMetrics.density).toInt()
+            onFocusItem = { b.playerView.showController() } // keep controls up while choosing
+        }
+        b.episodesStrip.layoutManager = LinearLayoutManager(this, androidx.recyclerview.widget.RecyclerView.HORIZONTAL, false)
+        b.episodesStrip.adapter = stripAdapter
+        if (items.first().kind == ItemKind.EPISODE) stripAdapter.submit(items)
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -295,7 +391,9 @@ class PlayerActivity : AppCompatActivity() {
         attempt = 0
         retries = 0
         b.error.visibility = View.GONE
-        b.title.text = item.name
+        updateTitles()
+        loadEpg(item)
+        stripAdapter.highlighted = if (item.kind == ItemKind.EPISODE) i else -1
         listAdapter.highlighted = i
 
         var start = position
@@ -311,7 +409,9 @@ class PlayerActivity : AppCompatActivity() {
         }
         when {
             resumed -> showInfo("متابعة من ${DetailsActivity.formatTime(start)}")
-            items.size > 1 -> showInfo("${i + 1}   ${item.name}")
+            items.size > 1 -> showInfo(
+                "${i + 1}   ${item.name}" + (profileId?.let { pid -> com.tvplayer.app.data.Epg.now(pid, item.id) }?.let { "\nالآن: ${it.title}" } ?: "")
+            )
         }
         if (item.kind == ItemKind.LIVE) profileId?.let { store.addRecent(it, item) }
         startAttempt(start)
@@ -777,6 +877,17 @@ class PlayerActivity : AppCompatActivity() {
         handler.postDelayed(zapRunnable, 500)
     }
 
+    private val hideLevel = Runnable { b.gestureBox.visibility = View.GONE }
+
+    private fun showLevel(volume: Boolean, pct: Int) {
+        b.gestureIcon.setImageResource(if (volume) com.tvplayer.app.R.drawable.ic_volume else com.tvplayer.app.R.drawable.ic_brightness)
+        b.gestureValue.text = "$pct%"
+        b.gestureBar.progress = pct
+        b.gestureBox.visibility = View.VISIBLE
+        handler.removeCallbacks(hideLevel)
+        handler.postDelayed(hideLevel, 900)
+    }
+
     private fun showInfo(text: String) {
         b.info.text = text
         b.info.visibility = View.VISIBLE
@@ -793,6 +904,13 @@ class PlayerActivity : AppCompatActivity() {
         if (event.action == KeyEvent.ACTION_DOWN && !b.listPanel.isVisible) {
             val controllerShown = b.playerView.isControllerFullyVisible
             when (event.keyCode) {
+                in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9 -> if (isLive() && items.size > 1) {
+                    if (numberBuffer.length < 4) numberBuffer += (event.keyCode - KeyEvent.KEYCODE_0).toString()
+                    showInfo("${numberBuffer}_")
+                    handler.removeCallbacks(numberRunnable)
+                    handler.postDelayed(numberRunnable, 1500)
+                    return true
+                }
                 KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_PAGE_UP -> { zap(1); return true }
                 KeyEvent.KEYCODE_CHANNEL_DOWN, KeyEvent.KEYCODE_PAGE_DOWN -> { zap(-1); return true }
                 KeyEvent.KEYCODE_DPAD_UP -> if (!controllerShown && isLive()) { zap(-1); return true }

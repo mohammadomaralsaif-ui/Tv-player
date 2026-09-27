@@ -23,6 +23,8 @@ class PlayerGestures(
     private val player: () -> Player?,
     private val isLive: () -> Boolean,
     private val osd: (String) -> Unit,
+    /** Volume (true) or brightness (false) level 0–100, for the big centered indicator. */
+    private val level: (Boolean, Int) -> Unit,
     private val toggleControls: () -> Unit,
 ) : View.OnTouchListener {
 
@@ -98,14 +100,14 @@ class PlayerGestures(
                         val delta = (-dy / (v.height * 0.7f) * maxVolume).toInt()
                         val vol = (startVolume + delta).coerceIn(0, maxVolume)
                         audio.setStreamVolume(AudioManager.STREAM_MUSIC, vol, 0)
-                        osd("🔊  ${vol * 100 / maxVolume}%")
+                        level(true, vol * 100 / maxVolume)
                     }
                     Mode.BRIGHTNESS -> {
                         val bright = (startBrightness - dy / (v.height * 0.7f)).coerceIn(0.02f, 1f)
                         val attrs = activity.window.attributes
                         attrs.screenBrightness = bright
                         activity.window.attributes = attrs
-                        osd("☀  ${(bright * 100).toInt()}%")
+                        level(false, (bright * 100).toInt())
                     }
                     Mode.NONE -> Unit
                 }

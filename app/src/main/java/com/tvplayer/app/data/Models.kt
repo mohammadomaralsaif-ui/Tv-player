@@ -67,6 +67,8 @@ data class Channel(
     val year: String = "",
     val seriesId: String? = null,
     val seriesName: String? = null,
+    /** Human-readable length, e.g. "45 د" (episodes). */
+    val duration: String = "",
 ) {
     val favKey: String get() = "${kind.name}:${url.ifEmpty { id }}"
 
@@ -88,6 +90,7 @@ data class Channel(
         put("year", year)
         put("seriesId", seriesId ?: "")
         put("seriesName", seriesName ?: "")
+        put("duration", duration)
     }
 
     companion object {
@@ -110,6 +113,7 @@ data class Channel(
                 year = o.str("year"),
                 seriesId = o.str("seriesId").ifBlank { null },
                 seriesName = o.str("seriesName").ifBlank { null },
+                duration = o.str("duration"),
             )
         }
     }

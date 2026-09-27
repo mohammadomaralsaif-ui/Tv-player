@@ -121,6 +121,9 @@ class ChannelAdapter(
     /** Wide 16:9 cards with a title + second line (continue watching). */
     var landscape = false
 
+    /** Episode rows: 16:9 thumbnail, title, length / progress, play button. */
+    var episodeRows = false
+
     var items: List<Channel> = emptyList()
         private set
 
@@ -155,6 +158,7 @@ class ChannelAdapter(
     }
 
     override fun getItemViewType(position: Int) = when {
+        episodeRows -> 3
         landscape -> 2
         grid -> 1
         else -> 0
@@ -164,11 +168,12 @@ class ChannelAdapter(
         val layout = when (viewType) {
             1 -> R.layout.item_poster
             2 -> R.layout.item_landscape
+            3 -> R.layout.item_episode
             else -> R.layout.item_channel
         }
         val v = LayoutInflater.from(parent.context).inflate(layout, parent, false)
         v.findViewById<ImageView>(R.id.logo).clipToOutline = true // rounded corners on posters
-        if (viewType != 0 && fixedWidthPx > 0) {
+        if ((viewType == 1 || viewType == 2) && fixedWidthPx > 0) {
             v.layoutParams = RecyclerView.LayoutParams(fixedWidthPx, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
         if (viewType == 1 && tiles) {
@@ -209,7 +214,7 @@ class ChannelAdapter(
 
         // Poster: rating badge. List row: red LIVE tag on live channels.
         h.badge?.let { badge ->
-            if (type != 0) {
+            if (type == 1 || type == 2) {
                 badge.text = if (c.rating.isNotBlank()) "★ ${c.rating}" else ""
                 badge.visibility = if (c.rating.isNotBlank()) View.VISIBLE else View.GONE
             } else {

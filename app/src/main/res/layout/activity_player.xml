@@ -25,22 +25,52 @@
 
         <ImageButton
             android:id="@+id/btnBack"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="@drawable/bg_focus"
+            style="@style/IconButton"
+            android:layout_marginStart="0dp"
             android:contentDescription="@string/back"
             android:src="@drawable/ic_back" />
 
-        <TextView
-            android:id="@+id/title"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="12dp"
             android:layout_weight="1"
-            android:ellipsize="end"
-            android:singleLine="true"
-            android:textColor="@android:color/white"
-            android:textSize="18sp" />
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:textColor="@android:color/white"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/subtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:textColor="#C5CEDB"
+                android:textSize="14sp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btnSubs"
+            style="@style/Pill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp" />
+
+        <Button
+            android:id="@+id/btnQuality"
+            style="@style/Pill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp" />
 
         <Button
             android:id="@+id/btnAspect"
@@ -64,7 +94,73 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:text="⚙ الإعدادات" />
+            android:text="المزيد" />
+    </LinearLayout>
+
+    <!-- Series: episodes strip above the controls -->
+    <LinearLayout
+        android:id="@+id/episodesBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:layout_marginBottom="118dp"
+        android:orientation="vertical"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/episodesTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            android:text="الحلقات"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/episodesStrip"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:clipToPadding="false" />
+    </LinearLayout>
+
+    <!-- Swipe feedback: volume / brightness -->
+    <LinearLayout
+        android:id="@+id/gestureBox"
+        android:layout_width="150dp"
+        android:layout_height="150dp"
+        android:layout_gravity="center"
+        android:background="@drawable/bg_overlay"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/gestureIcon"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:contentDescription="@null" />
+
+        <TextView
+            android:id="@+id/gestureValue"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <ProgressBar
+            android:id="@+id/gestureBar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="100dp"
+            android:layout_height="4dp"
+            android:layout_marginTop="8dp"
+            android:max="100"
+            android:progressBackgroundTint="#44FFFFFF"
+            android:progressTint="#FFFFFF" />
     </LinearLayout>
 
     <TextView

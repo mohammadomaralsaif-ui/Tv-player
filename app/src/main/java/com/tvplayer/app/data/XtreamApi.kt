@@ -156,6 +156,7 @@ class XtreamApi(private val profile: ServerProfile) {
                 kind = ItemKind.EPISODE,
                 seriesId = seriesId,
                 seriesName = details.title,
+                duration = minutesLabel(e.optJSONObject("info")),
             )
         }.sortedWith(compareBy({ it.group.toIntOrNull() ?: 0 }, { episodeNumber(it.name) }))
         return SeriesData(details, episodes)
@@ -183,6 +184,16 @@ class XtreamApi(private val profile: ServerProfile) {
         String(android.util.Base64.decode(s, android.util.Base64.DEFAULT), Charsets.UTF_8).trim()
     } catch (e: Exception) {
         s
+    }
+
+    /** "00:45:12" or duration_secs → "45 د". */
+    private fun minutesLabel(info: JSONObject?): String {
+        if (info == null) return ""
+        val secs = info.str("duration_secs").toLongOrNull() ?: info.str("duration").split(":").let { p ->
+            if (p.size == 3) (p[0].toLongOrNull() ?: 0) * 3600 + (p[1].toLongOrNull() ?: 0) * 60 + (p[2].toLongOrNull() ?: 0) else null
+        } ?: return ""
+        val m = secs / 60
+        return if (m >= 60) "${m / 60} س ${m % 60} د" else if (m > 0) "$m د" else ""
     }
 
     private fun episodeNumber(name: String): Int =
