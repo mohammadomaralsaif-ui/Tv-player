@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Alsaif</string>
+    <string name="app_name">Alsaif TV Player</string>
     <string name="add_server">+ إضافة سيرفر</string>
     <string name="no_servers">ما في سيرفرات لسا.\nاضغط \"إضافة سيرفر\" وحط بيانات Xtream أو رابط M3U أو رابط بث مباشر.</string>
     <string name="hint_long_press">ضغطة مطوّلة على السيرفر للتعديل أو الحذف</string>

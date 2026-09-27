@@ -20,7 +20,7 @@
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:contentDescription="@null"
-            android:src="@mipmap/ic_launcher" />
+            android:src="@drawable/logo_mark" />
 
         <TextView
             android:layout_width="0dp"
@@ -101,7 +101,7 @@
                 android:layout_height="84dp"
                 android:alpha="0.9"
                 android:contentDescription="@null"
-                android:src="@mipmap/ic_launcher" />
+                android:src="@drawable/logo_mark" />
 
             <TextView
                 android:layout_width="wrap_content"

@@ -1,18 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Alsaif logo: a play button with a sword cutting through it (adaptive-icon foreground). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <group android:pivotX="54" android:pivotY="54" android:scaleX="0.78" android:scaleY="0.78">
-        <path android:pathData="M38,24 Q31,20 31,28 L31,80 Q31,88 38,84 L82,58 Q88,54 82,50 Z">
-            <aapt:attr name="android:fillColor">
-                <gradient android:type="linear" android:startX="31" android:startY="20" android:endX="88" android:endY="88">
-                    <item android:offset="0" android:color="#FF7B5CFF" />
-                    <item android:offset="1" android:color="#FF2F86FF" />
-                </gradient>
-            </aapt:attr>
-        </path>
+    <group android:pivotX="54" android:pivotY="54" android:scaleX="0.95" android:scaleY="0.95">
+        <path android:fillColor="#FF5B6BFF" android:pathData="M38,24 Q31,20 31,28 L31,80 Q31,88 38,84 L82,58 Q88,54 82,50 Z" />
         <group android:pivotX="54" android:pivotY="56" android:rotation="-38">
             <path android:fillColor="#FF0B1220" android:pathData="M33,49 L87,49 L98,56 L87,63 L33,63 Z" />
             <path android:fillColor="#FFFFC53D" android:pathData="M15,56 m-5.2,0 a5.2,5.2 0,1 0,10.4 0 a5.2,5.2 0,1 0,-10.4 0" />

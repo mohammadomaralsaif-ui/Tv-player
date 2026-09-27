@@ -1,4 +1,4 @@
-# Alsaif
+# Alsaif TV Player
 
 مشغّل IPTV لأندرويد وأندرويد TV (Kotlin + ExoPlayer / Media3).
 
