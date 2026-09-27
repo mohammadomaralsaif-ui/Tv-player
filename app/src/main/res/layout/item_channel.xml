@@ -71,6 +71,17 @@
     </LinearLayout>
 
     <TextView
+        android:id="@+id/extra"
+        android:layout_width="150dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:ellipsize="end"
+        android:maxLines="2"
+        android:textColor="@color/text_dim"
+        android:textSize="12sp"
+        android:visibility="gone" />
+
+    <TextView
         android:id="@+id/badge"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

@@ -30,16 +30,20 @@ jobs:
         run: |
           grep -E "^e: |error:|FAILURE|What went wrong" -A2 build.log | head -60 | sed 's/^/::error::/' || true
       - name: Rename APK
-        run: cp app/build/outputs/apk/release/*.apk TVPlayer.apk
+        run: |
+          cp app/build/outputs/apk/release/*.apk Alsaif.apk
+          cp Alsaif.apk TVPlayer.apk   # old download link keeps working
       - uses: actions/upload-artifact@v4
         with:
-          name: TVPlayer-apk
-          path: TVPlayer.apk
+          name: Alsaif-apk
+          path: Alsaif.apk
       # Direct download link: /releases/latest/download/TVPlayer.apk
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: TV Player 1.${{ github.run_number }}
+          name: Alsaif 1.${{ github.run_number }}
           make_latest: true
-          files: TVPlayer.apk
+          files: |
+            Alsaif.apk
+            TVPlayer.apk

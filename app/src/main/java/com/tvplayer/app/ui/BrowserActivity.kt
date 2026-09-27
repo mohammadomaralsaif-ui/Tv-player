@@ -11,6 +11,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import coil.load
 import com.tvplayer.app.data.Category
 import com.tvplayer.app.data.Channel
 import com.tvplayer.app.data.Http
@@ -97,13 +98,16 @@ class BrowserActivity : AppCompatActivity() {
             startActivity(Intent(this, SearchActivity::class.java).putExtra(SearchActivity.EXTRA_PROFILE, profile.id))
         }
         b.btnRefresh.setOnClickListener { refreshFromServer() }
+        b.btnSettings.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
+        (b.items.itemAnimator as? androidx.recyclerview.widget.SimpleItemAnimator)?.supportsChangeAnimations = false
         applyLayoutForDevice()
 
         val isXtream = profile.type == ServerType.XTREAM
+        if (narrow) setupBottomNav(isXtream)
         if (isXtream) xtream = XtreamApi(profile)
         b.tabMovies.isVisible = isXtream
         b.tabSeries.isVisible = isXtream
-        if (!isXtream) b.tabLive.text = "📺 كل المحتوى"
+        if (!isXtream) b.tabLive.text = "كل المحتوى"
         b.tabHome.setOnClickListener { showHome() }
         b.tabLive.setOnClickListener { if (isXtream) selectSection(Section.LIVE) else showM3u() }
         b.tabMovies.setOnClickListener { selectSection(Section.MOVIES) }
@@ -114,19 +118,70 @@ class BrowserActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (::profile.isInitialized) refreshSpecial()
+        if (::profile.isInitialized) {
+            refreshSpecial()
+            b.clock.post(clockTick)
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (::b.isInitialized) b.clock.removeCallbacks(clockTick)
+    }
+
+    private val clockTick: Runnable = object : Runnable {
+        override fun run() {
+            b.clock.text = com.tvplayer.app.data.Epg.clock(System.currentTimeMillis())
+            b.clock.postDelayed(this, 20_000)
+        }
+    }
+
+    // ---------- phone bottom navigation ----------
+
+    private val navViews = ArrayList<android.view.View>()
+
+    private fun setupBottomNav(xt: Boolean) {
+        b.bottomNav.isVisible = true
+        val entries = ArrayList<Triple<String, Int, () -> Unit>>()
+        entries += Triple("الرئيسية", com.tvplayer.app.R.drawable.ic_nav_home) { showHome() }
+        if (xt) {
+            entries += Triple("مباشر", com.tvplayer.app.R.drawable.ic_nav_live) { selectSection(Section.LIVE) }
+            entries += Triple("أفلام", com.tvplayer.app.R.drawable.ic_nav_movies) { selectSection(Section.MOVIES) }
+            entries += Triple("مسلسلات", com.tvplayer.app.R.drawable.ic_nav_series) { selectSection(Section.SERIES) }
+        } else {
+            entries += Triple("كل المحتوى", com.tvplayer.app.R.drawable.ic_nav_live) { showM3u() }
+        }
+        entries += Triple("بحث", com.tvplayer.app.R.drawable.ic_nav_search) {
+            startActivity(Intent(this, SearchActivity::class.java).putExtra(SearchActivity.EXTRA_PROFILE, profile.id))
+        }
+        val tint = androidx.core.content.ContextCompat.getColorStateList(this, com.tvplayer.app.R.color.nav_text)
+        entries.forEach { (label, icon, action) ->
+            val v = layoutInflater.inflate(com.tvplayer.app.R.layout.item_nav, b.bottomNav, false)
+            v.findViewById<android.widget.ImageView>(com.tvplayer.app.R.id.navIcon).apply {
+                setImageResource(icon)
+                imageTintList = tint
+            }
+            v.findViewById<android.widget.TextView>(com.tvplayer.app.R.id.navLabel).text = label
+            v.setOnClickListener { action() }
+            b.bottomNav.addView(v)
+            navViews += v
+        }
     }
 
     /** TV / tablet: categories in a side column. Phone upright: categories as chips on top. */
     private fun applyLayoutForDevice() {
         if (narrow) {
-            b.root.setPadding(dp(12), dp(12), dp(12), 0)
+            // Phone: bottom navigation instead of top tabs; categories as chips on top.
+            b.root.setPadding(dp(14), dp(12), dp(14), dp(70))
+            b.tabsScroll.isVisible = false
+            b.clock.isVisible = false
+            b.btnSearch.isVisible = false
+            b.title.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(10) }
             b.body.orientation = LinearLayout.VERTICAL
             b.categories.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
             b.contentFrame.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f).apply { topMargin = dp(8) }
             b.categories.layoutManager = LinearLayoutManager(this, RecyclerView.HORIZONTAL, false)
             catAdapter.horizontal = true
-            b.btnSearch.text = "🔍"
             b.title.textSize = 19f
         } else {
             b.categories.layoutManager = LinearLayoutManager(this)
@@ -159,6 +214,76 @@ class BrowserActivity : AppCompatActivity() {
         b.tabSeries.isActivated = !home && s == Section.SERIES
         b.homeList.isVisible = home
         b.body.isVisible = !home
+        val navIndex = when {
+            home -> 0
+            profile.type != ServerType.XTREAM -> 1
+            s == Section.MOVIES -> 2
+            s == Section.SERIES -> 3
+            else -> 1
+        }
+        navViews.forEachIndexed { i, v -> v.isActivated = i == navIndex }
+        configureForSection(live = !home && (s == Section.LIVE || s == null))
+    }
+
+    // ---------- live channels: program guide + info panel ----------
+
+    private var focusedChannel: Channel? = null
+    private val epgRefresh = Runnable { itemAdapter.refreshQuiet() }
+
+    private fun requestEpg(c: Channel) {
+        val api = xtream ?: return
+        com.tvplayer.app.data.Epg.request(lifecycleScope, api, profile.id, c.id) {
+            b.items.removeCallbacks(epgRefresh)
+            b.items.postDelayed(epgRefresh, 250)
+            if (focusedChannel?.url == c.url) showLiveInfo(c)
+        }
+    }
+
+    private fun configureForSection(live: Boolean) {
+        val epg = com.tvplayer.app.data.Epg
+        if (live) {
+            itemAdapter.subtitleOf = { c ->
+                if (c.kind == ItemKind.LIVE && xtream != null) {
+                    requestEpg(c)
+                    epg.now(profile.id, c.id)?.let { "الآن: ${it.title}" }
+                } else ChannelAdapter.defaultSubtitle(c)
+            }
+            itemAdapter.progressOf = { c ->
+                if (c.kind == ItemKind.LIVE) epg.now(profile.id, c.id)?.percent() else progress[c.url]
+            }
+            itemAdapter.extraOf = { c ->
+                if (!narrow && c.kind == ItemKind.LIVE) epg.next(profile.id, c.id)?.let { "${epg.clock(it.start)}  ${it.title}" } else null
+            }
+            if (!narrow) {
+                b.livePanel.root.isVisible = true
+                itemAdapter.onFocusItem = { c -> if (c.kind == ItemKind.LIVE) showLiveInfo(c) }
+            }
+        } else {
+            itemAdapter.subtitleOf = { c -> ChannelAdapter.defaultSubtitle(c) }
+            itemAdapter.progressOf = { progress[it.url] }
+            itemAdapter.extraOf = { null }
+            itemAdapter.onFocusItem = null
+            b.livePanel.root.isVisible = false
+        }
+    }
+
+    private fun showLiveInfo(c: Channel) {
+        focusedChannel = c
+        val epg = com.tvplayer.app.data.Epg
+        val p = b.livePanel
+        p.liveName.text = c.name
+        if (c.logo.isNullOrBlank()) p.liveLogo.setImageResource(com.tvplayer.app.R.drawable.ic_tv)
+        else p.liveLogo.load(c.logo) { error(com.tvplayer.app.R.drawable.ic_tv) }
+        val now = epg.now(profile.id, c.id)
+        val next = epg.next(profile.id, c.id)
+        p.liveNowTime.text = now?.let { "الآن • ${it.timeRange()}" } ?: "الآن"
+        p.liveNowTitle.text = now?.title ?: if (xtream != null) "ما في دليل برامج لهاي القناة" else c.group
+        p.liveNowProgress.isVisible = now != null
+        p.liveNowProgress.progress = now?.percent() ?: 0
+        p.liveNowDesc.text = now?.desc.orEmpty()
+        p.liveNextTime.text = next?.let { "التالي • ${epg.clock(it.start)}" }.orEmpty()
+        p.liveNextTitle.text = next?.title.orEmpty()
+        if (now == null) requestEpg(c)
     }
 
     private fun refreshFromServer() {
@@ -178,17 +303,20 @@ class BrowserActivity : AppCompatActivity() {
         progress = store.continueWatching(profile.id).associate { it.channel.url to it.percent }
         val xt = profile.type == ServerType.XTREAM
         val rows = ArrayList<HomeAdapter.Row>()
-        val cw = visible(store.continueWatching(profile.id).map { e ->
-            val c = e.channel
-            if (c.kind == ItemKind.EPISODE && c.seriesName != null) c.copy(name = "${c.seriesName} • ${c.name.substringBefore(" •")}") else c
-        })
+        val entries = store.continueWatching(profile.id).filterNot { hiddenItem(it.channel) }
+        val subs = entries.associate { e ->
+            val ep = if (e.channel.kind == ItemKind.EPISODE) e.channel.name.substringBefore(" •") else ""
+            val left = if (e.duration > 0) "باقي ${((e.duration - e.position) / 60_000).coerceAtLeast(1)} د" else ""
+            e.channel.url to listOf(ep, left).filter { it.isNotBlank() }.joinToString("  •  ")
+        }
+        val cw = entries.map { it.channel }
         // Big featured card: what you were watching, or (below) the newest movie.
-        cw.firstOrNull()?.let { rows += HomeAdapter.Row("▶ كمّل من حيث وقفت", listOf(it), hero = true) }
-        if (cw.isNotEmpty()) rows += HomeAdapter.Row("▶ متابعة المشاهدة", cw)
+        cw.firstOrNull()?.let { rows += HomeAdapter.Row("كمّل من حيث وقفت", listOf(it), hero = true, subtitle = subs[it.url]) }
+        if (cw.isNotEmpty()) rows += HomeAdapter.Row("كمّل المشاهدة", cw, landscape = true, subs = subs)
         val favs = visible(store.favorites(profile.id))
-        favs.filter { it.kind != ItemKind.LIVE }.takeIf { it.isNotEmpty() }?.let { rows += HomeAdapter.Row("⭐ المفضلة", it) }
-        favs.filter { it.kind == ItemKind.LIVE }.takeIf { it.isNotEmpty() }?.let { rows += HomeAdapter.Row("⭐ قنواتي المفضلة", it, tiles = true) }
-        visible(store.recent(profile.id)).takeIf { it.isNotEmpty() }?.let { rows += HomeAdapter.Row("🕘 آخر القنوات", it, tiles = true) }
+        favs.filter { it.kind != ItemKind.LIVE }.takeIf { it.isNotEmpty() }?.let { rows += HomeAdapter.Row("المفضلة", it) }
+        favs.filter { it.kind == ItemKind.LIVE }.takeIf { it.isNotEmpty() }?.let { rows += HomeAdapter.Row("قنواتك المفضلة", it, tiles = true) }
+        visible(store.recent(profile.id)).takeIf { it.isNotEmpty() }?.let { rows += HomeAdapter.Row("آخر القنوات", it, tiles = true) }
         homeAdapter.submit(rows.toList())
 
         homeJob?.cancel()
@@ -198,12 +326,12 @@ class BrowserActivity : AppCompatActivity() {
                     val api = xtream ?: return@launch
                     val movies = allOf(api, Section.MOVIES)
                     newest(movies)?.let {
-                        if (rows.none { r -> r.hero }) rows.add(0, HomeAdapter.Row("🆕 جديد على السيرفر", listOf(it.first()), hero = true))
-                        rows += HomeAdapter.Row("🆕 أحدث الأفلام", it)
+                        if (rows.none { r -> r.hero }) rows.add(0, HomeAdapter.Row("جديد على السيرفر", listOf(it.first()), hero = true))
+                        rows += HomeAdapter.Row("أحدث الأفلام", it)
                     }
                     homeAdapter.submit(rows.toList())
                     val series = allOf(api, Section.SERIES)
-                    newest(series)?.let { rows += HomeAdapter.Row("🆕 أحدث المسلسلات", it) }
+                    newest(series)?.let { rows += HomeAdapter.Row("أحدث المسلسلات", it) }
                     homeAdapter.submit(rows.toList())
                     if (Library.categories[Section.LIVE] == null) {
                         Library.categories[Section.LIVE] = api.categories(Section.LIVE)
@@ -212,7 +340,7 @@ class BrowserActivity : AppCompatActivity() {
                     val all = loadM3uList()
                     val firstGroup = all.firstOrNull()?.group
                     visible(all.filter { it.group == firstGroup }).take(40).takeIf { it.isNotEmpty() }?.let {
-                        rows += HomeAdapter.Row("📺 $firstGroup", it, tiles = it.first().kind == ItemKind.LIVE)
+                        rows += HomeAdapter.Row(firstGroup ?: "", it, tiles = it.first().kind == ItemKind.LIVE)
                     }
                     homeAdapter.submit(rows.toList())
                 }
@@ -299,9 +427,9 @@ class BrowserActivity : AppCompatActivity() {
                 val groups = LinkedHashMap<String, Int>()
                 all.forEach { groups[it.group] = (groups[it.group] ?: 0) + 1 }
                 val cats = listOf(
-                    Category(CONTINUE_ID, "▶ متابعة المشاهدة"),
-                    Category(FAV_ID, "⭐ المفضلة"),
-                    Category(RECENT_ID, "🕘 آخر القنوات"),
+                    Category(CONTINUE_ID, "متابعة المشاهدة"),
+                    Category(FAV_ID, "المفضلة"),
+                    Category(RECENT_ID, "آخر القنوات"),
                     Category(ALL_ID, "الكل", all.size),
                 ) + groups.map { (g, n) -> Category(g, g, n) }
                 catAdapter.submit(displayCats(cats))
@@ -330,9 +458,9 @@ class BrowserActivity : AppCompatActivity() {
             try {
                 val cats = Library.categories[s] ?: api.categories(s).also { Library.categories[s] = it }
                 val special = if (s == Section.LIVE) {
-                    listOf(Category(FAV_ID, "⭐ المفضلة"), Category(RECENT_ID, "🕘 آخر القنوات"), Category(ALL_ID, "الكل"))
+                    listOf(Category(FAV_ID, "المفضلة"), Category(RECENT_ID, "آخر القنوات"), Category(ALL_ID, "الكل"))
                 } else {
-                    listOf(Category(CONTINUE_ID, "▶ متابعة المشاهدة"), Category(FAV_ID, "⭐ المفضلة"), Category(ALL_ID, "الكل"))
+                    listOf(Category(CONTINUE_ID, "متابعة المشاهدة"), Category(FAV_ID, "المفضلة"), Category(ALL_ID, "الكل"))
                 }
                 val all = special + cats
                 catAdapter.submit(displayCats(all))

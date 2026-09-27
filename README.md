@@ -1,4 +1,4 @@
-# TV Player
+# Alsaif
 
 مشغّل IPTV لأندرويد وأندرويد TV (Kotlin + ExoPlayer / Media3).
 
@@ -55,7 +55,7 @@
 - **🎮 المشغّل على الموبايل:** سحب يمين للصوت، يسار للإضاءة، عرضي للتقديم، ونقرتين ±10 ثواني
 
 ### رابط التحميل المباشر (دايماً آخر نسخة)
-`https://github.com/mohammadomaralsaif-ui/Tv-player/releases/latest/download/TVPlayer.apk`
+`https://github.com/mohammadomaralsaif-ui/Tv-player/releases/latest/download/Alsaif.apk`
 
 ## طريقة البناء
 

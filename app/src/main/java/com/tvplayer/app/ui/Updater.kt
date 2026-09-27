@@ -44,7 +44,7 @@ object Updater {
         val build = json.optString("tag_name").substringAfter("build-").toIntOrNull() ?: return@withContext null
         val assets = json.optJSONArray("assets") ?: return@withContext null
         val apk = (0 until assets.length()).mapNotNull { assets.optJSONObject(it) }
-            .firstOrNull { it.optString("name").endsWith(".apk") } ?: return@withContext null
+            .let { list -> list.firstOrNull { it.optString("name") == "Alsaif.apk" } ?: list.firstOrNull { it.optString("name").endsWith(".apk") } } ?: return@withContext null
         Release(build, json.optString("name").ifBlank { "1.$build" }, apk.optString("browser_download_url"))
     }
 
@@ -95,7 +95,7 @@ object Updater {
                     // Android 7+ shares the file through a FileProvider; older versions need a readable location.
                     val base = if (Build.VERSION.SDK_INT >= 24) activity.cacheDir else (activity.externalCacheDir ?: activity.cacheDir)
                     val dir = File(base, "updates").apply { mkdirs() }
-                    val f = File(dir, "TVPlayer.apk")
+                    val f = File(dir, "Alsaif.apk")
                     f.delete()
                     Http.client.newCall(Request.Builder().url(r.apkUrl).header("User-Agent", "TVPlayer-Updater").build()).execute().use { resp ->
                         if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
@@ -159,7 +159,7 @@ object Updater {
                         try {
                             activity.startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))
                         } catch (e2: ActivityNotFoundException) {
-                            toast(activity, "افتح إعدادات الجهاز واسمح لـ TV Player بتثبيت التطبيقات")
+                            toast(activity, "افتح إعدادات الجهاز واسمح لـ ${activity.getString(com.tvplayer.app.R.string.app_name)} بتثبيت التطبيقات")
                         }
                     }
                 }

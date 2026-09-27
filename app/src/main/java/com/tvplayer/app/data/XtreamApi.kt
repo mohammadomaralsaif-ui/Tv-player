@@ -161,6 +161,30 @@ class XtreamApi(private val profile: ServerProfile) {
         return SeriesData(details, episodes)
     }
 
+    /** Now / next programs of a live channel (Xtream short EPG). Titles come base64-encoded. */
+    suspend fun shortEpg(streamId: String): List<Program> {
+        val text = Http.get(apiUrl("get_short_epg", "&stream_id=${enc(streamId)}&limit=4"), ua)
+        val o = runCatching { JSONObject(text) }.getOrNull() ?: return emptyList()
+        val arr = o.optJSONArray("epg_listings") ?: return emptyList()
+        return (0 until arr.length()).mapNotNull { i ->
+            val e = arr.optJSONObject(i) ?: return@mapNotNull null
+            val start = e.str("start_timestamp").toLongOrNull() ?: return@mapNotNull null
+            val end = e.str("stop_timestamp").toLongOrNull() ?: e.str("end_timestamp").toLongOrNull() ?: return@mapNotNull null
+            Program(
+                title = b64(e.str("title")).ifBlank { return@mapNotNull null },
+                desc = b64(e.str("description")),
+                start = start * 1000,
+                end = end * 1000,
+            )
+        }.sortedBy { it.start }
+    }
+
+    private fun b64(s: String): String = try {
+        String(android.util.Base64.decode(s, android.util.Base64.DEFAULT), Charsets.UTF_8).trim()
+    } catch (e: Exception) {
+        s
+    }
+
     private fun episodeNumber(name: String): Int =
         Regex("""E(\d+)""").find(name)?.groupValues?.get(1)?.toIntOrNull() ?: 0
 

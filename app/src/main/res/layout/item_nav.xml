@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One bottom-navigation entry (phone). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="0dp"
+    android:layout_height="match_parent"
+    android:layout_weight="1"
+    android:background="?android:attr/selectableItemBackgroundBorderless"
+    android:clickable="true"
+    android:focusable="true"
+    android:gravity="center"
+    android:orientation="vertical">
+
+    <FrameLayout
+        android:id="@+id/navPill"
+        android:layout_width="52dp"
+        android:layout_height="30dp"
+        android:duplicateParentState="true"
+        android:background="@drawable/bg_nav_pill">
+
+        <ImageView
+            android:id="@+id/navIcon"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:layout_gravity="center"
+            android:contentDescription="@null"
+            android:duplicateParentState="true" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/navLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:duplicateParentState="true"
+        android:textColor="@color/nav_text"
+        android:textSize="11sp"
+        android:textStyle="bold" />
+</LinearLayout>

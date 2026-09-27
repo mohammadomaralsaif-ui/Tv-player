@@ -112,6 +112,15 @@ class ChannelAdapter(
     var subtitleOf: (Channel) -> String? = { defaultSubtitle(it) },
     private val showNumbers: Boolean = true,
 ) : RecyclerView.Adapter<ChannelAdapter.VH>() {
+    /** Small text at the end of a list row (e.g. the next program). */
+    var extraOf: (Channel) -> String? = { null }
+
+    /** Called when a row gets focus (TV): drives the live info panel. */
+    var onFocusItem: ((Channel) -> Unit)? = null
+
+    /** Wide 16:9 cards with a title + second line (continue watching). */
+    var landscape = false
+
     var items: List<Channel> = emptyList()
         private set
 
@@ -132,6 +141,9 @@ class ChannelAdapter(
     fun submit(list: List<Channel>) { items = list; notifyDataSetChanged() }
     fun refresh() = notifyDataSetChanged()
 
+    /** Re-binds visible rows without recreating them, so TV focus stays where it is. */
+    fun refreshQuiet() = notifyItemRangeChanged(0, itemCount, "quiet")
+
     class VH(v: View) : RecyclerView.ViewHolder(v) {
         val logo: ImageView = v.findViewById(R.id.logo)
         val name: TextView = v.findViewById(R.id.name)
@@ -139,15 +151,24 @@ class ChannelAdapter(
         val progress: ProgressBar = v.findViewById(R.id.progress)
         val number: TextView? = v.findViewById(R.id.number)
         val badge: TextView? = v.findViewById(R.id.badge)
+        val extra: TextView? = v.findViewById(R.id.extra)
     }
 
-    override fun getItemViewType(position: Int) = if (grid) 1 else 0
+    override fun getItemViewType(position: Int) = when {
+        landscape -> 2
+        grid -> 1
+        else -> 0
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-        val layout = if (viewType == 1) R.layout.item_poster else R.layout.item_channel
+        val layout = when (viewType) {
+            1 -> R.layout.item_poster
+            2 -> R.layout.item_landscape
+            else -> R.layout.item_channel
+        }
         val v = LayoutInflater.from(parent.context).inflate(layout, parent, false)
         v.findViewById<ImageView>(R.id.logo).clipToOutline = true // rounded corners on posters
-        if (viewType == 1 && fixedWidthPx > 0) {
+        if (viewType != 0 && fixedWidthPx > 0) {
             v.layoutParams = RecyclerView.LayoutParams(fixedWidthPx, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
         if (viewType == 1 && tiles) {
@@ -157,7 +178,6 @@ class ChannelAdapter(
             val pad = (10 * parent.resources.displayMetrics.density).toInt()
             logo.setPadding(pad, pad, pad, pad)
         }
-        Focus.zoom(v, if (viewType == 1) 1.07f else 1.02f)
         return VH(v)
     }
 
@@ -165,17 +185,31 @@ class ChannelAdapter(
 
     override fun onBindViewHolder(h: VH, position: Int) {
         val c = items[position]
-        h.name.text = if (position == highlighted) "▶ ${c.name}" else c.name
+        val type = getItemViewType(position)
+        h.name.text = when {
+            position == highlighted -> "▶ ${c.name}"
+            type == 2 -> c.seriesName ?: c.name
+            else -> c.name
+        }
+        h.extra?.let { e ->
+            val x = extraOf(c)
+            e.text = x
+            e.visibility = if (x.isNullOrBlank()) View.GONE else View.VISIBLE
+        }
+        h.itemView.setOnFocusChangeListener { v, has ->
+            Focus.animate(v, has, if (type == 0) 1.02f else 1.07f)
+            if (has) onFocusItem?.invoke(c)
+        }
         h.number?.text = (position + 1).toString()
         h.number?.visibility = if (showNumbers) View.VISIBLE else View.GONE
 
-        val sub = if (getItemViewType(position) == 1 && c.rating.isNotBlank()) c.year.ifBlank { null } else subtitleOf(c)
+        val sub = if (type == 1 && c.rating.isNotBlank()) c.year.ifBlank { null } else subtitleOf(c)
         h.sub.text = sub
         h.sub.visibility = if (sub.isNullOrBlank()) View.GONE else View.VISIBLE
 
         // Poster: rating badge. List row: red LIVE tag on live channels.
         h.badge?.let { badge ->
-            if (getItemViewType(position) == 1) {
+            if (type != 0) {
                 badge.text = if (c.rating.isNotBlank()) "★ ${c.rating}" else ""
                 badge.visibility = if (c.rating.isNotBlank()) View.VISIBLE else View.GONE
             } else {
@@ -225,10 +259,13 @@ class ChannelAdapter(
 object Focus {
     fun zoom(v: View, scale: Float) {
         if (!Device.isTv(v.context)) return
-        v.setOnFocusChangeListener { view, has ->
-            view.animate().scaleX(if (has) scale else 1f).scaleY(if (has) scale else 1f)
-                .translationZ(if (has) 8f else 0f).setDuration(140).start()
-        }
+        v.setOnFocusChangeListener { view, has -> animate(view, has, scale) }
+    }
+
+    fun animate(v: View, has: Boolean, scale: Float) {
+        if (!Device.isTv(v.context)) return
+        v.animate().scaleX(if (has) scale else 1f).scaleY(if (has) scale else 1f)
+            .translationZ(if (has) 8f else 0f).setDuration(140).start()
     }
 }
 
@@ -241,7 +278,17 @@ class HomeAdapter(
 ) : RecyclerView.Adapter<HomeAdapter.VH>() {
 
     /** [hero] = the big featured card at the top (uses the first item). */
-    class Row(val title: String, val items: List<Channel>, val tiles: Boolean = false, val hero: Boolean = false, val subtitle: String? = null)
+    class Row(
+        val title: String,
+        val items: List<Channel>,
+        val tiles: Boolean = false,
+        val hero: Boolean = false,
+        val subtitle: String? = null,
+        /** Wide 16:9 cards (continue watching). */
+        val landscape: Boolean = false,
+        /** Second line per item, keyed by url (e.g. "S2 E1 • باقي 9 د"). */
+        val subs: Map<String, String> = emptyMap(),
+    )
 
     private var rows: List<Row> = emptyList()
 
@@ -267,9 +314,14 @@ class HomeAdapter(
             val v = LayoutInflater.from(ctx).inflate(R.layout.item_hero, parent, false)
             v.findViewById<ImageView>(R.id.heroPoster).clipToOutline = true
             v.clipToOutline = true
+            val dd = ctx.resources.displayMetrics.density
             if (Device.isNarrow(ctx)) {
-                v.layoutParams.height = (200 * ctx.resources.displayMetrics.density).toInt()
+                v.layoutParams.height = (220 * dd).toInt()
                 v.findViewById<ImageView>(R.id.heroPoster).visibility = View.GONE
+            } else {
+                v.layoutParams.height = (330 * dd).toInt()
+                v.findViewById<ImageView>(R.id.heroPoster).layoutParams.apply { width = (180 * dd).toInt(); height = (270 * dd).toInt() }
+                v.findViewById<TextView>(R.id.heroTitle).textSize = 40f
             }
             return HeroVH(v)
         }
@@ -288,7 +340,12 @@ class HomeAdapter(
         val adapter = ChannelAdapter(onClick = onClick, onLongClick = onLongClick, progressOf = progressOf).apply {
             grid = true
             tiles = viewType == 1
-            fixedWidthPx = ((if (Device.isNarrow(ctx)) 118 else 140) * d).toInt()
+            landscape = viewType == 3
+            fixedWidthPx = (when {
+                viewType == 3 -> if (Device.isNarrow(ctx)) 220 else 290
+                Device.isNarrow(ctx) -> 118
+                else -> 140
+            } * d).toInt()
         }
         val list = RecyclerView(ctx).apply {
             layoutManager = androidx.recyclerview.widget.LinearLayoutManager(ctx, RecyclerView.HORIZONTAL, false)
@@ -320,6 +377,11 @@ class HomeAdapter(
         }
         val h = holder as RowVH
         h.title.text = row.title
+        h.adapter.subtitleOf = if (row.subs.isNotEmpty()) {
+            { c -> row.subs[c.url] ?: ChannelAdapter.defaultSubtitle(c) }
+        } else {
+            { c -> ChannelAdapter.defaultSubtitle(c) }
+        }
         h.adapter.submit(row.items)
         h.list.isVisible = row.items.isNotEmpty()
         h.list.scrollToPosition(0)
@@ -327,6 +389,7 @@ class HomeAdapter(
 
     override fun getItemViewType(position: Int) = when {
         rows[position].hero -> 2
+        rows[position].landscape -> 3
         rows[position].tiles -> 1
         else -> 0
     }
