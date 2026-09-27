@@ -11,6 +11,7 @@
 
     <ImageView
         android:id="@+id/logo"
+        android:background="@drawable/bg_poster"
         android:layout_width="match_parent"
         android:layout_height="170dp"
         android:contentDescription="@null"

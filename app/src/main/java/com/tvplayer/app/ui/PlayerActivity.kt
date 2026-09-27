@@ -134,6 +134,25 @@ class PlayerActivity : AppCompatActivity() {
         }
 
         b.playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
+        b.playerView.controllerShowTimeoutMs = 4000
+        b.playerView.setShowRewindButton(true)
+        b.playerView.setShowFastForwardButton(true)
+        if (!Device.isTv(this)) {
+            // Touch gestures: volume, brightness, seeking, double-tap ±10s.
+            b.playerView.setOnTouchListener(
+                PlayerGestures(
+                    activity = this,
+                    player = { exo },
+                    isLive = { isLive() },
+                    osd = { showInfo(it) },
+                    toggleControls = {
+                        if (b.listPanel.isVisible) closeList()
+                        else if (b.playerView.isControllerFullyVisible) b.playerView.hideController()
+                        else b.playerView.showController()
+                    },
+                )
+            )
+        }
         b.playerView.resizeMode = RESIZE_MODES[store.resizeIndex.coerceIn(0, RESIZE_MODES.size - 1)]
         b.playerView.setControllerVisibilityListener(
             PlayerView.ControllerVisibilityListener { v -> if (!b.listPanel.isVisible) b.topBar.visibility = v }
@@ -201,6 +220,8 @@ class PlayerActivity : AppCompatActivity() {
             .build()
         val player = ExoPlayer.Builder(this, renderers)
             .setLoadControl(loadControl)
+            .setSeekBackIncrementMs(10_000)
+            .setSeekForwardIncrementMs(10_000)
             .build()
         // Arabic subtitles / audio picked automatically when the stream has them.
         player.trackSelectionParameters = withQualityCap(

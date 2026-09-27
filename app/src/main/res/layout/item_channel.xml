@@ -20,6 +20,7 @@
 
     <ImageView
         android:id="@+id/logo"
+        android:background="@drawable/bg_poster"
         android:layout_width="56dp"
         android:layout_height="40dp"
         android:contentDescription="@null"

@@ -32,8 +32,11 @@ class ProfileAdapter(
         val sub: TextView = v.findViewById(R.id.sub)
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
-        VH(LayoutInflater.from(parent.context).inflate(R.layout.item_profile, parent, false))
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+        val v = LayoutInflater.from(parent.context).inflate(R.layout.item_profile, parent, false)
+        Focus.zoom(v, 1.02f)
+        return VH(v)
+    }
 
     override fun getItemCount() = items.size
 
@@ -41,9 +44,9 @@ class ProfileAdapter(
         val p = items[position]
         h.name.text = p.name
         h.sub.text = when (p.type) {
-            ServerType.XTREAM -> "Xtream Codes • ${p.username}"
-            ServerType.M3U -> "قائمة M3U"
-            ServerType.DIRECT -> "رابط بث مباشر"
+            ServerType.XTREAM -> "📡  Xtream Codes • ${p.username}"
+            ServerType.M3U -> "📋  قائمة M3U"
+            ServerType.DIRECT -> "🔗  رابط بث مباشر"
         }
         h.itemView.setOnClickListener { onClick(p) }
         h.itemView.setOnLongClickListener { onLongClick(p); true }
@@ -136,6 +139,7 @@ class ChannelAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val layout = if (viewType == 1) R.layout.item_poster else R.layout.item_channel
         val v = LayoutInflater.from(parent.context).inflate(layout, parent, false)
+        v.findViewById<ImageView>(R.id.logo).clipToOutline = true // rounded corners on posters
         if (viewType == 1 && fixedWidthPx > 0) {
             v.layoutParams = RecyclerView.LayoutParams(fixedWidthPx, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
