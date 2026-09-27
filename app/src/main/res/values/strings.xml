@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Player</string>
+    <string name="add_server">+ إضافة سيرفر</string>
+    <string name="no_servers">ما في سيرفرات لسا.\nاضغط \"إضافة سيرفر\" وحط بيانات Xtream أو رابط M3U أو رابط بث مباشر.</string>
+    <string name="hint_long_press">ضغطة مطوّلة على السيرفر للتعديل أو الحذف</string>
+    <string name="search">بحث…</string>
+    <string name="tab_live">البث المباشر</string>
+    <string name="tab_movies">الأفلام</string>
+    <string name="tab_series">المسلسلات</string>
+    <string name="server_type">نوع السيرفر</string>
+    <string name="server_name">اسم السيرفر (اختياري)</string>
+    <string name="username">اسم المستخدم</string>
+    <string name="password">كلمة المرور</string>
+    <string name="live_format">صيغة البث المباشر</string>
+    <string name="user_agent">User-Agent (اختياري — اتركه فاضي للافتراضي)</string>
+    <string name="save">حفظ</string>
+    <string name="cancel">إلغاء</string>
+    <string name="back">رجوع</string>
+    <string name="fav_hint">ضغطة مطوّلة على أي قناة لإضافتها للمفضلة</string>
+</resources>

@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:id="@+id/heading"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="إضافة سيرفر"
+            android:textColor="@color/text"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/server_type"
+            android:textColor="@color/text_dim" />
+
+        <RadioGroup
+            android:id="@+id/typeGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:checkedButton="@+id/rbXtream"
+            android:orientation="horizontal">
+
+            <RadioButton
+                android:id="@+id/rbXtream"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="16dp"
+                android:text="Xtream Codes"
+                android:textColor="@color/text" />
+
+            <RadioButton
+                android:id="@+id/rbM3u"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="16dp"
+                android:text="M3U"
+                android:textColor="@color/text" />
+
+            <RadioButton
+                android:id="@+id/rbDirect"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="رابط مباشر"
+                android:textColor="@color/text" />
+        </RadioGroup>
+
+        <EditText
+            android:id="@+id/name"
+            style="@style/TvInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/server_name"
+            android:inputType="text" />
+
+        <EditText
+            android:id="@+id/url"
+            style="@style/TvInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textUri"
+            android:textDirection="ltr" />
+
+        <LinearLayout
+            android:id="@+id/xtreamFields"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <EditText
+                android:id="@+id/username"
+                style="@style/TvInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="@string/username"
+                android:inputType="text"
+                android:textDirection="ltr" />
+
+            <EditText
+                android:id="@+id/password"
+                style="@style/TvInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="@string/password"
+                android:inputType="text"
+                android:textDirection="ltr" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:text="@string/live_format"
+                android:textColor="@color/text_dim" />
+
+            <RadioGroup
+                android:id="@+id/formatGroup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:checkedButton="@+id/rbHls"
+                android:orientation="horizontal">
+
+                <RadioButton
+                    android:id="@+id/rbHls"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="16dp"
+                    android:text="HLS (m3u8)"
+                    android:textColor="@color/text" />
+
+                <RadioButton
+                    android:id="@+id/rbTs"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="MPEG-TS (ts)"
+                    android:textColor="@color/text" />
+            </RadioGroup>
+        </LinearLayout>
+
+        <EditText
+            android:id="@+id/userAgent"
+            style="@style/TvInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/user_agent"
+            android:inputType="text"
+            android:textDirection="ltr" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnSave"
+                style="@style/TvButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/save" />
+
+            <Button
+                android:id="@+id/btnCancel"
+                style="@style/TvButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:text="@string/cancel" />
+
+            <ProgressBar
+                android:id="@+id/progress"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="16dp"
+                android:visibility="gone" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

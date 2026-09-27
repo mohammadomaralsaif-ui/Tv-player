@@ -1,0 +1,1335 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TV Player</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Readex+Pro:wght@500;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.min.js"></script>
+<style>
+:root{
+  color-scheme: dark;
+  --bg:#0A0E13; --panel:#111720; --raised:#18202B; --line:#222C39; --hover:#1F2935;
+  --text:#E6ECF2; --dim:#8794A3; --faint:#5B6776;
+  --accent:#2E7DFF; --accent-soft:rgba(46,125,255,.16); --accent-text:#9CC3FF;
+  --live:#FF4D4F; --ok:#39C07F; --warn:#F2B84B;
+  --radius:10px;
+  --display:'Readex Pro', 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  --body:'IBM Plex Sans Arabic', system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font:15px/1.55 var(--body);overflow:hidden}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none;padding:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+:focus{outline:none}
+:focus-visible{box-shadow:0 0 0 3px var(--accent);border-radius:8px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* ---------- app shell ---------- */
+.app{height:100%;display:grid;grid-template-rows:auto auto 1fr;padding-inline:20px;gap:12px;padding-block:14px 0}
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;font:700 20px/1 var(--display);letter-spacing:.2px}
+.brand .mark{width:30px;height:22px;border-radius:5px;background:var(--accent);display:grid;place-items:center}
+.brand .mark::after{content:"";border-inline-start:9px solid #fff;border-block:6px solid transparent;margin-inline-start:2px;transform:scaleX(-1)}
+.server-btn{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;background:var(--raised);color:var(--text);max-width:260px}
+.server-btn .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.server-btn .t{font-size:11px;color:var(--dim);background:var(--panel);padding:2px 6px;border-radius:4px}
+.spacer{flex:1}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:8px;background:var(--raised);white-space:nowrap;transition:background .15s}
+.btn:hover{background:var(--hover)}
+.btn.primary{background:var(--accent);color:#fff}
+.btn.primary:hover{background:#1f6ef0}
+.btn.ghost{background:transparent;color:var(--dim)}
+.btn.ghost:hover{color:var(--text);background:var(--raised)}
+.btn.small{padding:6px 10px;font-size:13px}
+.searchbar{display:flex;align-items:center;gap:10px;min-width:220px;padding:9px 14px;border-radius:8px;background:var(--raised);color:var(--dim)}
+.searchbar:hover{background:var(--hover);color:var(--text)}
+.searchbar kbd{margin-inline-start:auto;font:12px var(--mono);color:var(--faint);border:1px solid var(--line);border-radius:4px;padding:0 5px}
+
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line)}
+.tab{padding:10px 16px;color:var(--dim);font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab:hover{color:var(--text)}
+.tab[aria-selected="true"]{color:var(--text);border-color:var(--accent)}
+.tab .count{font-size:12px;color:var(--faint);margin-inline-start:4px}
+
+.main{display:grid;grid-template-columns:250px 1fr;gap:20px;min-height:0}
+.cats{overflow:auto;padding-block:4px 20px;padding-inline-end:4px;display:flex;flex-direction:column;gap:2px}
+.cat{display:flex;align-items:center;gap:8px;text-align:start;padding:9px 12px;border-radius:8px;color:var(--dim)}
+.cat:hover{background:var(--panel);color:var(--text)}
+.cat[aria-current="true"]{background:var(--accent-soft);color:var(--accent-text)}
+.cat .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cat .ct{font-size:12px;color:var(--faint)}
+.cat-sep{height:1px;background:var(--line);margin:8px 4px}
+
+.content{display:flex;flex-direction:column;min-height:0;min-width:0}
+.content-head{display:flex;align-items:baseline;gap:12px;padding-block:2px 12px;flex-wrap:wrap}
+.content-head h2{margin:0;font:600 19px/1.3 var(--display);text-wrap:balance}
+.content-head .meta{color:var(--faint);font-size:13px}
+.sortsel{margin-inline-start:auto;background:var(--raised);border:0;border-radius:8px;padding:7px 10px;color:var(--text)}
+.scroll{overflow:auto;min-height:0;padding-bottom:28px}
+
+/* channel rows */
+.rows{display:flex;flex-direction:column;gap:2px}
+.row{position:relative;display:grid;grid-template-columns:44px 64px 1fr auto;align-items:center;gap:12px;padding:8px 10px;border-radius:8px;text-align:start}
+.row:hover,.row:focus-visible{background:var(--panel)}
+.row .no{color:var(--faint);font-size:13px;text-align:center}
+.row .lg{width:64px;height:40px;border-radius:6px;object-fit:contain;background:var(--raised)}
+.row .tt{min-width:0}
+.row .tt b{display:block;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .tt small{display:block;color:var(--dim);font-size:12px}
+.more{width:32px;height:32px;border-radius:8px;color:var(--dim);display:grid;place-items:center;font-size:18px;line-height:1}
+.more:hover{background:var(--raised);color:var(--text)}
+.bar{height:3px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:5px}
+.bar i{display:block;height:100%;background:var(--accent)}
+
+/* poster grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:18px 14px}
+.card{position:relative;display:flex;flex-direction:column;gap:6px;text-align:start;border-radius:var(--radius)}
+.card .ps{position:relative;aspect-ratio:2/3;max-width:100%;border-radius:var(--radius);overflow:hidden;background:var(--raised);transition:transform .15s}
+.card .ps img{width:100%;height:100%;object-fit:cover;display:block}
+.card:hover .ps,.card:focus-visible .ps{transform:translateY(-3px)}
+.card:focus-visible{box-shadow:none}
+.card:focus-visible .ps{box-shadow:0 0 0 3px var(--accent)}
+.card .ps .bar{position:absolute;inset-inline:0;bottom:0;margin:0;border-radius:0;height:4px;background:rgba(0,0,0,.5)}
+.card b{font-weight:500;font-size:14px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card small{color:var(--dim);font-size:12px}
+.card .more{position:absolute;top:6px;inset-inline-end:6px;background:rgba(10,14,19,.7);opacity:0;transition:opacity .15s}
+.card:hover .more,.card .more:focus-visible{opacity:1}
+.badge{display:inline-block;font:500 11px/1 var(--mono);padding:3px 5px;border-radius:4px;background:var(--raised);color:var(--dim)}
+.badge.live{background:var(--live);color:#fff}
+
+.empty{padding:60px 20px;text-align:center;color:var(--dim)}
+.empty b{display:block;color:var(--text);font:600 17px var(--display);margin-bottom:6px}
+.spinner{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);animation:spin .8s linear infinite;margin:60px auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+.errbox{margin:30px auto;max-width:560px;padding:18px 20px;border-radius:var(--radius);background:var(--panel);border:1px solid var(--line);line-height:1.7}
+.errbox b{color:var(--warn);display:block;margin-bottom:4px}
+
+/* ---------- overlays ---------- */
+.layer{position:fixed;inset:0;z-index:20;background:var(--bg);display:flex;flex-direction:column}
+.layer-head{display:flex;align-items:center;gap:10px;padding:14px 20px;padding-top:calc(14px + env(safe-area-inset-top,0px))}
+
+/* search */
+.search-input{flex:1;background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:12px 16px;font-size:18px;color:var(--text)}
+.search-input:focus{border-color:var(--accent)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;padding-inline:20px}
+.chip{padding:6px 12px;border-radius:999px;background:var(--raised);color:var(--dim);font-size:13px}
+.chip[aria-pressed="true"]{background:var(--accent);color:#fff}
+.search-status{padding:10px 20px 0;color:var(--faint);font-size:13px}
+.search-body{flex:1;overflow:auto;padding:10px 20px 30px}
+
+/* details */
+.details{overflow:auto}
+.dt-back{position:absolute;inset:0 0 auto 0;height:70vh;background-size:cover;background-position:center;filter:blur(30px) saturate(1.2);opacity:.28;transform:scale(1.2);pointer-events:none}
+.dt-back::after{content:"";position:absolute;inset:0;background:linear-gradient(transparent 20%,var(--bg))}
+.dt-wrap{position:relative;padding:8px 20px 40px;max-width:1100px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+.dt-top{display:grid;grid-template-columns:200px 1fr;gap:28px;align-items:start}
+.dt-poster{width:200px;max-width:100%;aspect-ratio:2/3;border-radius:12px;object-fit:cover;background:var(--raised);box-shadow:0 20px 50px rgba(0,0,0,.5)}
+.dt-top h1{margin:0 0 6px;font:700 32px/1.2 var(--display);text-wrap:balance}
+.dt-meta{display:flex;gap:8px;flex-wrap:wrap;color:var(--dim);font-size:14px;margin-bottom:12px}
+.dt-meta span+span::before{content:"•";margin-inline-end:8px;color:var(--faint)}
+.dt-plot{max-width:65ch;margin:0 0 12px;line-height:1.8}
+.dt-people{color:var(--dim);font-size:13px;margin:0 0 16px;max-width:70ch}
+.dt-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.dt-progress{max-width:340px;margin-bottom:14px}
+.dt-progress small{color:var(--dim);font-size:12px}
+.seasons{display:flex;gap:6px;flex-wrap:wrap}
+.ep{display:grid;grid-template-columns:120px 1fr auto;gap:14px;align-items:center;padding:8px;border-radius:10px;text-align:start}
+.ep:hover,.ep:focus-visible{background:var(--panel)}
+.ep img{width:120px;aspect-ratio:16/9;object-fit:cover;border-radius:6px;background:var(--raised)}
+.ep b{font-weight:500}
+.ep small{color:var(--dim);font-size:12px;display:block}
+.eplist{display:flex;flex-direction:column;gap:2px}
+.section-title{font:600 16px var(--display);margin:0 0 10px}
+
+/* ---------- player ---------- */
+.player{position:fixed;inset:0;z-index:40;background:#000;color:#fff;overflow:hidden}
+.player video{width:100%;height:100%;display:block;background:#000;object-fit:contain}
+.player video::cue{font-size:var(--cue,1.6rem);background:rgba(0,0,0,.55);color:#fff;font-family:var(--body)}
+.p-top,.p-bottom{position:absolute;inset-inline:0;padding:16px 22px;display:flex;align-items:center;gap:10px;transition:opacity .25s}
+.p-top{top:0;background:linear-gradient(rgba(0,0,0,.8),transparent);padding-top:calc(16px + env(safe-area-inset-top,0px))}
+.p-bottom{bottom:0;flex-direction:column;align-items:stretch;background:linear-gradient(transparent,rgba(0,0,0,.85));padding-bottom:calc(18px + env(safe-area-inset-bottom,0px))}
+.player.idle .p-top,.player.idle .p-bottom{opacity:0;pointer-events:none}
+.player.idle{cursor:none}
+.p-title{flex:1;min-width:0}
+.p-title b{display:block;font:600 18px var(--display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p-title small{color:rgba(255,255,255,.7);font-size:12px}
+.pbtn{height:40px;min-width:40px;padding:0 12px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;gap:6px;background:rgba(255,255,255,.1);color:#fff;font-size:14px}
+.pbtn:hover{background:rgba(255,255,255,.2)}
+.pbtn.icon{padding:0;font-size:18px}
+.p-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.p-time{font:500 13px var(--mono);color:rgba(255,255,255,.85);min-width:110px;text-align:center}
+.seek{width:100%;accent-color:var(--accent);height:18px;direction:ltr}
+.livepill{display:inline-flex;align-items:center;gap:6px;font:500 12px var(--mono);letter-spacing:.8px;padding:4px 8px;border-radius:4px;background:var(--live)}
+.livepill::before{content:"";width:7px;height:7px;border-radius:50%;background:#fff}
+.p-osd{position:absolute;top:84px;inset-inline-start:28px;padding:10px 16px;border-radius:10px;background:rgba(0,0,0,.72);font:500 20px var(--display);transition:opacity .3s;pointer-events:none;max-width:70%}
+.p-osd .ch{font-family:var(--mono);color:var(--accent-text);margin-inline-end:10px}
+.p-center{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none}
+.p-center .spinner{margin:0}
+.p-error{pointer-events:auto;max-width:520px;margin:20px;padding:18px 22px;border-radius:12px;background:rgba(17,23,32,.94);line-height:1.8;text-align:center}
+.p-error b{display:block;font:600 17px var(--display);margin-bottom:6px;color:var(--warn)}
+
+.sheet{position:absolute;top:0;bottom:0;inset-inline-end:0;width:min(400px,100%);background:rgba(12,16,22,.96);backdrop-filter:blur(10px);display:flex;flex-direction:column;z-index:3;box-shadow:0 0 40px rgba(0,0,0,.6)}
+.sheet-head{display:flex;align-items:center;gap:8px;padding:16px 18px;padding-top:calc(16px + env(safe-area-inset-top,0px));border-bottom:1px solid rgba(255,255,255,.08)}
+.sheet-head h3{flex:1;margin:0;font:600 17px var(--display)}
+.sheet-body{flex:1;overflow:auto;padding:8px 10px 20px}
+.opt{display:flex;align-items:center;gap:12px;width:100%;padding:12px;border-radius:8px;text-align:start;color:#fff}
+.opt:hover,.opt:focus-visible{background:rgba(255,255,255,.08)}
+.opt .k{flex:1}
+.opt .v{color:var(--accent-text);font-size:13px}
+.opt[aria-checked="true"]::after{content:"✓";color:var(--accent-text);font-weight:700}
+.opt-note{padding:8px 12px 12px;color:rgba(255,255,255,.6);font-size:13px;line-height:1.6}
+.opt-group{padding:14px 12px 6px;color:rgba(255,255,255,.45);font-size:12px;letter-spacing:.4px}
+.li{display:grid;grid-template-columns:34px 48px 1fr;gap:10px;align-items:center;width:100%;padding:8px;border-radius:8px;text-align:start;color:#fff}
+.li:hover,.li:focus-visible{background:rgba(255,255,255,.08)}
+.li[aria-current="true"]{background:var(--accent-soft)}
+.li[aria-current="true"] .nm::before{content:"▶ ";color:var(--accent-text)}
+.li img{width:48px;height:32px;object-fit:cover;border-radius:4px;background:#222}
+.li .no{font:12px var(--mono);color:rgba(255,255,255,.5);text-align:center}
+.li .nm{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.li .bar{margin-top:4px;background:rgba(255,255,255,.12)}
+
+/* ---------- dialogs, menus, toast ---------- */
+.modal-bg{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.6);display:grid;place-items:center;padding:16px}
+.modal{width:min(560px,100%);max-height:calc(100% - 32px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px}
+.modal h3{margin:0 0 14px;font:600 19px var(--display)}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.field label{font-size:13px;color:var(--dim)}
+.field input{background:var(--raised);border:1px solid var(--line);border-radius:8px;padding:10px 12px;direction:ltr;text-align:left}
+.field input:focus{border-color:var(--accent)}
+.seg{display:flex;gap:4px;background:var(--raised);padding:4px;border-radius:9px;flex-wrap:wrap}
+.seg button{flex:1;padding:8px 10px;border-radius:6px;color:var(--dim);font-size:14px}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.srv{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px}
+.srv:hover{background:var(--raised)}
+.srv[aria-current="true"]{background:var(--accent-soft)}
+.srv .grow{flex:1;min-width:0;text-align:start}
+.srv .grow b{display:block;font-weight:500}
+.srv .grow small{color:var(--dim);font-size:12px}
+.row-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
+.note{font-size:13px;color:var(--dim);line-height:1.7;background:var(--raised);border-radius:8px;padding:10px 12px;margin:0 0 12px}
+.menu{position:fixed;z-index:70;min-width:230px;background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:6px;box-shadow:0 14px 40px rgba(0,0,0,.5)}
+.menu button{display:block;width:100%;text-align:start;padding:10px 12px;border-radius:6px}
+.menu button:hover,.menu button:focus-visible{background:var(--hover)}
+.toast{position:fixed;z-index:80;width:max-content;max-width:calc(100% - 32px);bottom:calc(24px + env(safe-area-inset-bottom,0px));inset-inline-start:50%;transform:translateX(50%);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:8px;font-weight:500;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.help{color:var(--faint);font-size:12px;padding:6px 0 14px}
+
+/* ---------- phone width ---------- */
+@media (max-width:760px){
+  .app{padding-inline:16px;gap:10px}
+  .top .spacer{display:none}
+  .searchbar{order:3;flex:1 1 100%;min-width:0;white-space:nowrap}
+  .searchbar kbd{display:none}
+  .server-btn{flex:1;min-width:0}
+  .main{grid-template-columns:1fr;grid-template-rows:auto 1fr;gap:10px}
+  .cats{flex-direction:row;overflow-x:auto;overflow-y:hidden;padding:0 0 6px}
+  .cat{flex:none;background:var(--panel)}
+  .cat-sep{display:none}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:14px 10px}
+  .row{grid-template-columns:30px 52px 1fr auto;gap:8px}
+  .row .lg{width:52px;height:34px}
+  .dt-top{grid-template-columns:1fr}
+  .dt-poster{width:150px}
+  .dt-top h1{font-size:25px}
+  .ep{grid-template-columns:96px 1fr auto}
+  .ep img{width:96px}
+  .p-time{min-width:0}
+  .p-osd{top:70px;inset-inline-start:16px;font-size:17px}
+}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="top">
+    <div class="brand"><span class="mark" aria-hidden="true"></span>TV Player</div>
+    <button class="server-btn" id="serverBtn" title="السيرفرات"><span class="n" id="serverName"></span><span class="t" id="serverType"></span><span aria-hidden="true">▾</span></button>
+    <div class="spacer"></div>
+    <button class="searchbar" id="searchBtn"><span aria-hidden="true">⌕</span><span>بحث شامل بكل السيرفر</span><kbd>/</kbd></button>
+  </header>
+  <nav class="tabs" id="tabs" role="tablist"></nav>
+  <div class="main">
+    <aside class="cats" id="cats" aria-label="التصنيفات"></aside>
+    <section class="content">
+      <div class="content-head">
+        <h2 id="catTitle"></h2><span class="meta" id="catMeta"></span>
+        <select class="sortsel" id="sortSel" aria-label="الترتيب">
+          <option value="0">ترتيب السيرفر</option>
+          <option value="1">الأحدث إضافة</option>
+          <option value="2">الاسم (أ-ي)</option>
+          <option value="3">الأعلى تقييماً</option>
+          <option value="4">الأحدث سنةً</option>
+        </select>
+      </div>
+      <div class="scroll" id="items"></div>
+    </section>
+  </div>
+</div>
+
+<!-- search -->
+<div class="layer" id="search" hidden>
+  <div class="layer-head">
+    <button class="btn ghost" data-close="search" aria-label="رجوع">→</button>
+    <input class="search-input" id="q" type="search" placeholder="ابحث عن قناة، فيلم أو مسلسل…" autocomplete="off">
+  </div>
+  <div class="chips" id="qFilters">
+    <button class="chip" data-k="" aria-pressed="true">الكل</button>
+    <button class="chip" data-k="live" aria-pressed="false">مباشر</button>
+    <button class="chip" data-k="movie" aria-pressed="false">أفلام</button>
+    <button class="chip" data-k="series" aria-pressed="false">مسلسلات</button>
+  </div>
+  <div class="search-status" id="qStatus"></div>
+  <div class="search-body" id="qResults"></div>
+</div>
+
+<!-- details -->
+<div class="layer details" id="details" hidden></div>
+
+<!-- player -->
+<div class="player" id="player" hidden>
+  <video id="video" playsinline></video>
+  <div class="p-center" id="pCenter"></div>
+  <div class="p-top">
+    <button class="pbtn icon" id="pClose" aria-label="رجوع">→</button>
+    <div class="p-title"><b id="pTitle"></b><small id="pSub"></small></div>
+    <button class="pbtn" id="pListBtn">☰ <span id="pListLbl">الحلقات</span></button>
+    <button class="pbtn" id="pSetBtn">⚙ الإعدادات</button>
+  </div>
+  <div class="p-osd" id="pOsd" hidden></div>
+  <div class="p-bottom">
+    <input class="seek" id="pSeek" type="range" min="0" max="1000" value="0" aria-label="التقدّم">
+    <div class="p-controls">
+      <button class="pbtn icon" id="pPrev" title="السابق" aria-label="السابق">⏮</button>
+      <button class="pbtn icon" id="pBack10" title="رجوع 10 ثواني" aria-label="رجوع 10 ثواني">↺</button>
+      <button class="pbtn icon" id="pPlay" aria-label="تشغيل/إيقاف">⏸</button>
+      <button class="pbtn icon" id="pFwd10" title="تقديم 10 ثواني" aria-label="تقديم 10 ثواني">↻</button>
+      <button class="pbtn icon" id="pNext" title="التالي" aria-label="التالي">⏭</button>
+      <span class="p-time" id="pTime"></span>
+      <span class="spacer"></span>
+      <span class="badge" id="pRes" style="background:rgba(255,255,255,.12);color:#fff"></span>
+      <button class="pbtn" id="pSubsBtn" title="الترجمة">CC</button>
+      <button class="pbtn icon" id="pFull" title="ملء الشاشة" aria-label="ملء الشاشة">⛶</button>
+    </div>
+  </div>
+  <aside class="sheet" id="pSheet" hidden>
+    <div class="sheet-head"><h3 id="pSheetTitle"></h3><button class="pbtn icon" id="pSheetClose" aria-label="إغلاق">✕</button></div>
+    <div class="sheet-body" id="pSheetBody"></div>
+  </aside>
+</div>
+
+<div id="modalRoot"></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+'use strict';
+/* =========================================================
+   Small helpers
+   ========================================================= */
+const $ = (s, r = document) => r.querySelector(s);
+function el(tag, props = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (v == null || v === false) continue;
+    if (k === 'class') e.className = v;
+    else if (k === 'text') e.textContent = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else if (k === 'style') e.style.cssText = v;
+    else e.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) e.append(c.nodeType ? c : document.createTextNode(c));
+  return e;
+}
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem('tvp:' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('tvp:' + k, JSON.stringify(v)); } catch {} },
+  del(k) { try { localStorage.removeItem('tvp:' + k); } catch {} },
+};
+let toastTimer;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.hidden = true, 2600);
+}
+function fmtTime(s) {
+  if (!isFinite(s) || s < 0) s = 0;
+  s = Math.floor(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60;
+  return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0');
+}
+const favKey = it => it.kind + ':' + (it.url || it.id);
+const watchKey = it => (it.kind === 'episode' && it.seriesId) ? 'S:' + it.seriesId : 'V:' + it.url;
+const KIND_LABEL = { live: 'مباشر', movie: 'فيلم', series: 'مسلسل', episode: 'حلقة' };
+
+/* Generated artwork for the demo library (no outside images needed). */
+function poster(title, hue, sub = '') {
+  const t = title.replace(/[<&>]/g, '');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300"><defs><linearGradient id="g" x1="0" y1="0" x2=".4" y2="1"><stop offset="0" stop-color="hsl(${hue},62%,46%)"/><stop offset="1" stop-color="hsl(${(hue + 40) % 360},55%,11%)"/></linearGradient></defs><rect width="200" height="300" fill="url(#g)"/><circle cx="150" cy="80" r="70" fill="hsla(${hue},80%,80%,.14)"/><text x="16" y="236" font-family="Readex Pro,Arial" font-size="21" font-weight="700" fill="#fff">${t}</text><text x="16" y="262" font-family="Arial" font-size="12" fill="rgba(255,255,255,.7)">${sub}</text></svg>`;
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+}
+function logo(text, hue) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 100"><rect width="160" height="100" rx="12" fill="hsl(${hue},55%,24%)"/><text x="80" y="62" font-family="Readex Pro,Arial" font-size="30" font-weight="700" fill="hsl(${hue},90%,85%)" text-anchor="middle">${text}</text></svg>`;
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+}
+
+/* =========================================================
+   Network — explains browser blocks in plain words
+   ========================================================= */
+async function getText(url) {
+  let r;
+  try { r = await fetch(url); }
+  catch (e) {
+    const httpFromHttps = location.protocol === 'https:' && /^http:/i.test(url);
+    throw new Error(httpFromHttps
+      ? 'المتصفح منع الاتصال لأنه السيرفر http والصفحة https. افتح الملف من جهازك مباشرة (file://) أو استخدم تطبيق الأندرويد.'
+      : 'المتصفح منع الاتصال بالسيرفر. أغلب سيرفرات IPTV ما بتسمح للمتصفحات تتصل فيها (CORS). تطبيق الأندرويد بيشتغل معها عادي.');
+  }
+  if (!r.ok) throw new Error('السيرفر رد بخطأ HTTP ' + r.status);
+  return r.text();
+}
+async function getJson(url) {
+  const t = await getText(url);
+  try { return JSON.parse(t); } catch { throw new Error('الرد من السيرفر مش بصيغة Xtream'); }
+}
+
+/* =========================================================
+   M3U parser (same rules as the Android app)
+   ========================================================= */
+function guessKind(url) {
+  const l = url.toLowerCase().split('?')[0];
+  if (l.includes('/movie/')) return 'movie';
+  if (l.includes('/series/')) return 'episode';
+  if (/\.(mp4|mkv|avi|mov|webm|m4v)$/.test(l)) return 'movie';
+  return 'live';
+}
+function parseM3U(text) {
+  const out = []; let title = null, attrs = {}, grp = null;
+  for (let line of text.split(/\r?\n/)) {
+    line = line.trim().replace(/^﻿/, '');
+    if (!line) continue;
+    if (/^#EXTINF/i.test(line)) {
+      attrs = {}; for (const m of line.matchAll(/([A-Za-z0-9_-]+)\s*=\s*"([^"]*)"/g)) attrs[m[1].toLowerCase()] = m[2];
+      let q = false; title = null;
+      for (let i = 0; i < line.length; i++) { if (line[i] === '"') q = !q; else if (line[i] === ',' && !q) { title = line.slice(i + 1).trim(); break; } }
+    } else if (/^#EXTGRP:/i.test(line)) grp = line.slice(8).trim();
+    else if (line.startsWith('#')) continue;
+    else {
+      const url = line.split('|')[0];
+      out.push({
+        id: 'm' + out.length, url, kind: guessKind(url),
+        name: title || attrs['tvg-name'] || 'قناة ' + (out.length + 1),
+        logo: attrs['tvg-logo'] || null,
+        group: attrs['group-title'] || grp || 'بدون تصنيف',
+      });
+      title = null; attrs = {}; grp = null;
+    }
+  }
+  return out;
+}
+
+/* =========================================================
+   Providers: demo, Xtream Codes, M3U, direct link
+   ========================================================= */
+const STREAMS = {
+  bbbHls: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
+  sintelHls: 'https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8',
+  appleAdv: 'https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8',
+  akamaiLive: 'https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8',
+  artOfMotion: 'https://bitdash-a.akamaihd.net/content/MI201109210084_1/m3u8s/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.m3u8',
+  gcs: n => 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/' + n + '.mp4',
+};
+const Demo = (() => {
+  const day = 86400, now = Math.floor(Date.now() / 1000);
+  const live = [
+    { id: 'l1', name: 'قناة البث الحي (Akamai)', logo: logo('LIVE', 0), group: 'c1', url: STREAMS.akamaiLive, note: 'بث حي حقيقي' },
+    { id: 'l2', name: 'قناة Apple التجريبية', logo: logo('APL', 210), group: 'c3', url: STREAMS.appleAdv, note: 'عدة جودات + ترجمة + أصوات' },
+    { id: 'l3', name: 'Big Buck TV', logo: logo('BBB', 30), group: 'c2', url: STREAMS.bbbHls },
+    { id: 'l4', name: 'Sintel TV', logo: logo('SNT', 280), group: 'c2', url: STREAMS.sintelHls, note: 'ترجمات بعدة لغات' },
+    { id: 'l5', name: 'Art of Motion HD', logo: logo('AOM', 160), group: 'c3', url: STREAMS.artOfMotion },
+  ].map(x => ({ ...x, kind: 'live' }));
+  const movies = [
+    { id: 'v1', name: 'Big Buck Bunny', year: '2008', dur: '10 د', hue: 30, url: STREAMS.bbbHls, group: 'mc1', added: now - 2 * day,
+      plot: 'أرنب ضخم وطيّب بيقرر ينتقم بطريقته من ثلاث قوارض بتضايقه وبتخرب هدوء الغابة.', genre: 'رسوم متحركة، كوميديا', director: 'Sacha Goedegebure' },
+    { id: 'v2', name: 'Sintel', year: '2010', dur: '15 د', hue: 280, url: STREAMS.sintelHls, group: 'mc1', added: now - 1 * day,
+      plot: 'بنت اسمها سينتل بتدوّر على تنّين صغير ربّته وانخطف منها، ورحلتها بتاخدها لأماكن ما كانت تتوقعها.', genre: 'رسوم متحركة، مغامرة', director: 'Colin Levy' },
+    { id: 'v3', name: 'Elephants Dream', year: '2006', dur: '11 د', hue: 190, url: STREAMS.gcs('ElephantsDream'), group: 'mc1', added: now - 9 * day,
+      plot: 'رجلين، إيمو وبروغ، بعالم ميكانيكي غريب، وكل واحد فيهم شايف العالم بطريقة مختلفة.', genre: 'رسوم متحركة، خيال', director: 'Bassam Kurdali' },
+    { id: 'v4', name: 'Tears of Steel', year: '2012', dur: '12 د', hue: 200, url: STREAMS.gcs('TearsOfSteel'), group: 'mc1', added: now - 4 * day,
+      plot: 'بأمستردام، مجموعة علماء بيحاولوا ينقذوا العالم من روبوتات مدمّرة، عن طريق إصلاح علاقة قديمة.', genre: 'خيال علمي', director: 'Ian Hubert' },
+    { id: 'v5', name: 'For Bigger Blazes', year: '2014', dur: '15 ث', hue: 10, url: STREAMS.gcs('ForBiggerBlazes'), group: 'mc2', added: now - 20 * day,
+      plot: 'مقطع قصير لتجربة تشغيل MP4 مباشر.', genre: 'مقطع قصير' },
+    { id: 'v6', name: 'For Bigger Escapes', year: '2014', dur: '15 ث', hue: 120, url: STREAMS.gcs('ForBiggerEscapes'), group: 'mc2', added: now - 30 * day,
+      plot: 'مقطع قصير لتجربة تشغيل MP4 مباشر.', genre: 'مقطع قصير' },
+  ].map(x => ({ ...x, kind: 'movie', logo: poster(x.name, x.hue, x.year) }));
+  const seriesDefs = [
+    { id: 's1', name: 'أفلام Blender', hue: 250, year: '2006', added: now - 3 * day,
+      plot: 'مجموعة أفلام قصيرة مفتوحة المصدر من استوديو Blender، مرتبة كمسلسل بموسمين عشان تجرّب التنقّل بين الحلقات والمواسم.',
+      seasons: { 1: [['Elephants Dream', STREAMS.gcs('ElephantsDream')], ['Big Buck Bunny', STREAMS.gcs('BigBuckBunny')]],
+                 2: [['Sintel', STREAMS.sintelHls], ['Tears of Steel', STREAMS.gcs('TearsOfSteel')]] } },
+    { id: 's2', name: 'مراجعات سيارات', hue: 40, year: '2013', added: now - 6 * day,
+      plot: 'حلقات قصيرة لمراجعات سيارات. مفيدة لتجربة "متابعة المشاهدة" والانتقال التلقائي للحلقة الجاية.',
+      seasons: { 1: [['سوبارو أوتباك', STREAMS.gcs('SubaruOutbackOnStreetAndDirt')], ['فولكسفاغن GTI', STREAMS.gcs('VolkswagenGTIReview')],
+                     ['رحلة بولران', STREAMS.gcs('WeAreGoingOnBullrun')], ['سيارة بألف دولار', STREAMS.gcs('WhatCarCanYouGetForAGrand')]] } },
+    { id: 's3', name: 'اختبارات البث', hue: 330, year: '2020', added: now - 12 * day,
+      plot: 'حلقات فيها كل أنواع البث: عدة جودات، ترجمات، ومسارات صوت مختلفة. جرّب من ⚙ الإعدادات تغيّر الجودة والترجمة والصوت.',
+      seasons: { 1: [['عدة جودات + ترجمة + صوت', STREAMS.appleAdv], ['ترجمات بعدة لغات', STREAMS.sintelHls], ['جودة عالية', STREAMS.artOfMotion]] } },
+  ];
+  const series = seriesDefs.map(s => ({ id: s.id, name: s.name, kind: 'series', url: '', group: 'sc1', year: s.year, added: s.added, logo: poster(s.name, s.hue, s.year) }));
+  const cats = {
+    live: [{ id: 'c1', name: 'بث حي' }, { id: 'c2', name: 'قنوات أفلام' }, { id: 'c3', name: 'قنوات اختبار' }],
+    movie: [{ id: 'mc1', name: 'أفلام Blender المفتوحة' }, { id: 'mc2', name: 'مقاطع قصيرة' }],
+    series: [{ id: 'sc1', name: 'مسلسلات تجريبية' }],
+  };
+  const all = { live, movie: movies, series };
+  const wait = v => new Promise(r => setTimeout(() => r(v), 120));
+  return {
+    type: 'demo', hasDetails: true, hasSections: true,
+    categories: sec => wait(cats[sec]),
+    items: (sec, cat) => wait(all[sec].filter(x => !cat || x.group === cat)),
+    vodInfo: it => { const m = movies.find(x => x.id === it.id) || it;
+      return wait({ title: m.name, poster: m.logo, plot: m.plot, genre: m.genre, director: m.director, release: m.year, duration: m.dur, cast: 'فيلم مفتوح المصدر (Creative Commons)' }); },
+    seriesInfo: it => { const s = seriesDefs.find(x => x.id === it.id);
+      const eps = []; for (const [sn, list] of Object.entries(s.seasons)) list.forEach(([t, url], i) =>
+        eps.push({ id: s.id + '-' + sn + '-' + (i + 1), name: `S${sn} E${i + 1} • ${t}`, url, kind: 'episode', group: sn, seriesId: s.id, seriesName: s.name, logo: poster(t, s.hue + i * 25, 'S' + sn + ' E' + (i + 1)) }));
+      return wait({ details: { title: s.name, poster: poster(s.name, s.hue, s.year), plot: s.plot, release: s.year, genre: 'تجريبي' }, episodes: eps }); },
+  };
+})();
+
+function Xtream(srv) {
+  let base = srv.url.trim();
+  if (!/^https?:\/\//i.test(base)) base = 'http://' + base;
+  base = base.split('?')[0].replace(/\/+$/, '').replace(/\/(player_api|get|xmltv|panel_api)\.php$/i, '');
+  const u = srv.user, p = srv.pass, fmt = srv.fmt || 'm3u8';
+  const api = (a, extra = '') => `${base}/player_api.php?username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}${a ? '&action=' + a : ''}${extra}`;
+  const arr = j => Array.isArray(j) ? j : (j && typeof j === 'object' ? Object.values(j) : []);
+  const s = v => v == null ? '' : String(v);
+  const rating = r => { const d = parseFloat(r); return d > 0 ? d.toFixed(1) : ''; };
+  const acts = { live: ['get_live_categories', 'get_live_streams'], movie: ['get_vod_categories', 'get_vod_streams'], series: ['get_series_categories', 'get_series'] };
+  const backdrop = i => Array.isArray(i.backdrop_path) ? i.backdrop_path[0] : (i.backdrop_path || null);
+  return {
+    type: 'xtream', hasDetails: true, hasSections: true,
+    async login() { const j = await getJson(api()); if (s(j?.user_info?.auth) !== '1') throw new Error('اسم المستخدم أو كلمة المرور غلط'); return j.user_info; },
+    async categories(sec) { return arr(await getJson(api(acts[sec][0]))).map(c => ({ id: s(c.category_id), name: s(c.category_name) || '—' })); },
+    async items(sec, cat) {
+      const list = arr(await getJson(api(acts[sec][1], cat ? '&category_id=' + encodeURIComponent(cat) : '')));
+      return list.map(o => {
+        if (sec === 'live') { const id = s(o.stream_id), other = fmt === 'ts' ? 'm3u8' : 'ts';
+          return { id, kind: 'live', name: s(o.name), logo: o.stream_icon || null, group: s(o.category_id), url: `${base}/live/${u}/${p}/${id}.${fmt}`, fallback: `${base}/live/${u}/${p}/${id}.${other}`, added: +o.added || 0 }; }
+        if (sec === 'movie') { const id = s(o.stream_id);
+          return { id, kind: 'movie', name: s(o.name), logo: o.stream_icon || null, group: s(o.category_id), url: `${base}/movie/${u}/${p}/${id}.${o.container_extension || 'mp4'}`, rating: rating(o.rating), added: +o.added || 0, year: s(o.year) }; }
+        return { id: s(o.series_id), kind: 'series', name: s(o.name), logo: o.cover || null, group: s(o.category_id), url: '', rating: rating(o.rating), added: +o.last_modified || 0, year: s(o.year || o.releaseDate || o.release_date).slice(0, 4) };
+      }).filter(x => x.id);
+    },
+    async vodInfo(it) {
+      const j = await getJson(api('get_vod_info', '&vod_id=' + encodeURIComponent(it.id))); const i = (j && !Array.isArray(j.info) && j.info) || {};
+      return { title: s(i.name) || it.name, poster: i.movie_image || i.cover_big || it.logo, backdrop: backdrop(i), plot: s(i.plot || i.description), genre: s(i.genre), cast: s(i.cast || i.actors), director: s(i.director), release: s(i.releasedate || i.release_date), rating: rating(i.rating), duration: s(i.duration) };
+    },
+    async seriesInfo(it) {
+      const j = await getJson(api('get_series_info', '&series_id=' + encodeURIComponent(it.id))); const i = (j && !Array.isArray(j.info) && j.info) || {};
+      const details = { title: s(i.name) || it.name, poster: i.cover || it.logo, backdrop: backdrop(i), plot: s(i.plot), genre: s(i.genre), cast: s(i.cast), director: s(i.director), release: s(i.releaseDate || i.release_date), rating: rating(i.rating) };
+      let raw = [];
+      const e = j && j.episodes;
+      if (Array.isArray(e)) e.forEach(x => Array.isArray(x) ? raw.push(...x) : raw.push(x));
+      else if (e) Object.keys(e).sort((a, b) => a - b).forEach(k => raw.push(...arr(e[k])));
+      const eps = raw.filter(x => x && x.id).map(x => ({
+        id: s(x.id), kind: 'episode', group: s(x.season) || '1', seriesId: it.id, seriesName: details.title,
+        name: `S${s(x.season) || 1} E${s(x.episode_num)} • ${s(x.title)}`,
+        logo: (x.info && x.info.movie_image) || details.poster,
+        url: `${base}/series/${u}/${p}/${s(x.id)}.${x.container_extension || 'mp4'}`,
+      }));
+      eps.sort((a, b) => (+a.group - +b.group) || ((+(a.name.match(/E(\d+)/) || [])[1] || 0) - (+(b.name.match(/E(\d+)/) || [])[1] || 0)));
+      return { details, episodes: eps };
+    },
+  };
+}
+
+function M3U(srv) {
+  let cache = null;
+  const load = async () => cache || (cache = parseM3U(await getText(srv.url)));
+  return {
+    type: 'm3u', hasDetails: false, hasSections: false,
+    async categories() { const l = await load(); const g = new Map(); l.forEach(x => g.set(x.group, (g.get(x.group) || 0) + 1)); return [...g].map(([k, n]) => ({ id: k, name: k, count: n })); },
+    async items(sec, cat) { const l = await load(); return cat ? l.filter(x => x.group === cat) : l; },
+  };
+}
+function Direct(srv) {
+  const item = { id: 'd', name: srv.name, url: srv.url, kind: guessKind(srv.url), group: 'd', logo: logo('▶', 215) };
+  return { type: 'direct', hasDetails: false, hasSections: false,
+    categories: async () => [{ id: 'd', name: 'الرابط' }], items: async () => [item] };
+}
+
+/* =========================================================
+   State: servers + per-server favorites / continue / recent
+   ========================================================= */
+const DEMO = { id: 'demo', type: 'demo', name: 'السيرفر التجريبي' };
+const TYPE_LABEL = { demo: 'تجريبي', xtream: 'Xtream', m3u: 'M3U', direct: 'رابط' };
+const S = {
+  servers: [DEMO, ...LS.get('servers', [])],
+  sid: LS.get('current', 'demo'),
+  section: 'live', cat: null, sort: +LS.get('sort', 0),
+  cache: {}, provider: null,
+};
+const server = () => S.servers.find(s => s.id === S.sid) || DEMO;
+function makeProvider(s) { return s.type === 'xtream' ? Xtream(s) : s.type === 'm3u' ? M3U(s) : s.type === 'direct' ? Direct(s) : Demo; }
+
+const Lists = {
+  fav() { return LS.get('fav:' + S.sid, []); },
+  isFav(it) { return this.fav().some(x => favKey(x) === favKey(it)); },
+  toggleFav(it) { let l = this.fav(); const had = l.some(x => favKey(x) === favKey(it));
+    l = had ? l.filter(x => favKey(x) !== favKey(it)) : [clean(it), ...l]; LS.set('fav:' + S.sid, l); return !had; },
+  cw() { return LS.get('cw:' + S.sid, []).sort((a, b) => b.t - a.t); },
+  entry(key) { return this.cw().find(e => watchKey(e.it) === key); },
+  progress(it) { return this.cw().find(e => watchKey(e.it) === watchKey(it) && e.it.url === it.url); },
+  save(it, pos, dur) { const l = this.cw().filter(e => watchKey(e.it) !== watchKey(it)); l.unshift({ it: clean(it), pos, dur, t: Date.now() }); LS.set('cw:' + S.sid, l.slice(0, 60)); },
+  remove(key) { LS.set('cw:' + S.sid, this.cw().filter(e => watchKey(e.it) !== key)); },
+  recent() { return LS.get('recent:' + S.sid, []); },
+  addRecent(it) { const l = this.recent().filter(x => favKey(x) !== favKey(it)); l.unshift(clean(it)); LS.set('recent:' + S.sid, l.slice(0, 30)); },
+  removeRecent(it) { LS.set('recent:' + S.sid, this.recent().filter(x => favKey(x) !== favKey(it))); },
+};
+function clean(it) { const { details, ...rest } = it; return rest; }
+const pct = e => e && e.dur > 0 ? Math.min(100, Math.round(e.pos / e.dur * 100)) : 0;
+
+/* =========================================================
+   Browse
+   ========================================================= */
+const SECTIONS = [['live', 'البث المباشر'], ['movie', 'الأفلام'], ['series', 'المسلسلات']];
+const SPECIAL = { cw: '▶ متابعة المشاهدة', fav: '★ المفضلة', recent: '◷ آخر القنوات', all: 'الكل' };
+
+function selectServer(id) {
+  S.sid = id; LS.set('current', id); S.cache = {}; S.provider = makeProvider(server());
+  $('#serverName').textContent = server().name; $('#serverType').textContent = TYPE_LABEL[server().type];
+  S.section = 'live'; renderTabs(); loadSection();
+}
+function renderTabs() {
+  const tabs = $('#tabs'); tabs.replaceChildren();
+  if (!S.provider.hasSections) { tabs.hidden = true; return; }
+  tabs.hidden = false;
+  SECTIONS.forEach(([k, name]) => tabs.append(el('button', { class: 'tab', role: 'tab', 'aria-selected': String(k === S.section),
+    onclick: () => { S.section = k; renderTabs(); loadSection(); } }, name)));
+}
+function specialsFor(sec) {
+  if (!S.provider.hasSections) return ['cw', 'fav', 'recent', 'all'];
+  return sec === 'live' ? ['fav', 'recent', 'all'] : ['cw', 'fav', 'all'];
+}
+async function loadSection() {
+  const cats = $('#cats'); cats.replaceChildren(el('div', { class: 'spinner' }));
+  $('#catTitle').textContent = ''; $('#catMeta').textContent = ''; current = { list: [], sort: true, empty: '' };
+  $('#items').replaceChildren();
+  try {
+    const key = 'cats:' + S.section;
+    const list = S.cache[key] || (S.cache[key] = await S.provider.categories(S.section));
+    cats.replaceChildren();
+    specialsFor(S.section).forEach(id => cats.append(catButton({ id: '@' + id, name: SPECIAL[id] })));
+    cats.append(el('div', { class: 'cat-sep' }));
+    list.forEach(c => cats.append(catButton(c)));
+    const first = list.length && S.provider.hasSections ? list[0].id : '@all';
+    openCat(first);
+  } catch (e) { cats.replaceChildren(); showError($('#items'), e, loadSection); }
+}
+function catButton(c) {
+  return el('button', { class: 'cat', 'data-id': c.id, onclick: () => openCat(c.id) },
+    el('span', { class: 'nm', text: c.name }), c.count != null ? el('span', { class: 'ct num', text: c.count }) : null);
+}
+function showError(box, e, retry) {
+  box.replaceChildren(el('div', { class: 'errbox' }, el('b', { text: 'ما قدرت أحمّل المحتوى' }), e.message,
+    retry ? el('div', { style: 'margin-top:12px' }, el('button', { class: 'btn small', onclick: retry }, 'حاول مرة ثانية')) : null));
+}
+async function openCat(id) {
+  S.cat = id;
+  document.querySelectorAll('.cat').forEach(b => b.setAttribute('aria-current', String(b.dataset.id === id)));
+  const btn = document.querySelector(`.cat[data-id="${CSS.escape(id)}"]`);
+  $('#catTitle').textContent = btn ? btn.querySelector('.nm').textContent : '';
+  const box = $('#items');
+  $('#sortSel').hidden = id.startsWith('@') && id !== '@all';
+  const kindOf = { live: 'live', movie: 'movie', series: 'series' }[S.section];
+  if (id === '@cw') {
+    const want = S.provider.hasSections ? (S.section === 'series' ? 'episode' : 'movie') : null;
+    return renderItems(Lists.cw().map(e => e.it).filter(x => !want || x.kind === want), 'لسا ما بلّشت تحضر إشي', false);
+  }
+  if (id === '@fav') return renderItems(Lists.fav().filter(x => !S.provider.hasSections || x.kind === kindOf), 'ما في مفضلة لسا. اضغط ⋯ على أي عنصر وأضفه.', false);
+  if (id === '@recent') return renderItems(Lists.recent(), 'ما حضرت أي قناة لسا', false);
+  box.replaceChildren(el('div', { class: 'spinner' }));
+  try {
+    const catId = id === '@all' ? null : id;
+    const key = S.section + ':' + (catId || '*');
+    const list = S.cache[key] || (S.cache[key] = await S.provider.items(S.section, catId));
+    if (S.cat !== id) return;
+    renderItems(list, 'لا يوجد محتوى هنا', true);
+  } catch (e) { showError(box, e, () => openCat(id)); }
+}
+function sorted(list) {
+  const l = [...list];
+  switch (S.sort) {
+    case 1: return l.sort((a, b) => (b.added || 0) - (a.added || 0));
+    case 2: return l.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+    case 3: return l.sort((a, b) => (parseFloat(b.rating) || -1) - (parseFloat(a.rating) || -1));
+    case 4: return l.sort((a, b) => (parseInt(b.year) || 0) - (parseInt(a.year) || 0));
+    default: return l;
+  }
+}
+let current = { list: [], sort: true, empty: '' };
+function renderItems(list, empty, sort) {
+  current = { list, sort, empty };
+  const shown = sort ? sorted(list) : list;
+  $('#catMeta').textContent = list.length ? list.length + ' عنصر' : '';
+  const box = $('#items');
+  if (!shown.length) { box.replaceChildren(el('div', { class: 'empty' }, el('b', { text: 'فاضي' }), empty)); return; }
+  const posters = shown.some(x => x.kind === 'movie' || x.kind === 'series' || x.kind === 'episode') && S.provider.hasSections;
+  box.replaceChildren(posters ? gridOf(shown) : rowsOf(shown));
+  box.scrollTop = 0;
+}
+function subOf(it) {
+  const p = [];
+  if (it.rating) p.push('★ ' + it.rating);
+  if (it.year) p.push(it.year);
+  return p.join('  •  ');
+}
+function progressBar(v) { return el('div', { class: 'bar' }, el('i', { style: `width:${v}%` })); }
+function rowsOf(list, opts = {}) {
+  const box = el('div', { class: 'rows' });
+  list.forEach((it, i) => {
+    const pr = it.kind !== 'live' ? pct(Lists.progress(it)) : 0;
+    const title = it.kind === 'episode' && it.seriesName && opts.withSeries !== false && !opts.inDetails ? it.seriesName + ' — ' + it.name : it.name;
+    const sub = opts.kindLabel ? [KIND_LABEL[it.kind], subOf(it)].filter(Boolean).join('  •  ') : subOf(it);
+    box.append(el('div', { class: 'row', tabindex: '0', role: 'button',
+      onclick: e => { if (!e.target.closest('.more')) openItem(list, i); },
+      onkeydown: e => { if (e.key === 'Enter') openItem(list, i); },
+      oncontextmenu: e => { e.preventDefault(); itemMenu(it, e.clientX, e.clientY); } },
+      el('span', { class: 'no num', text: i + 1 }),
+      el('img', { class: 'lg', src: it.logo || logo('TV', 215), alt: '', loading: 'lazy', onerror: e => e.target.src = logo('TV', 215) }),
+      el('div', { class: 'tt' }, el('b', { text: title }), sub ? el('small', { text: sub }) : null, pr ? progressBar(pr) : null),
+      el('button', { class: 'more', 'aria-label': 'خيارات', onclick: e => { const r = e.currentTarget.getBoundingClientRect(); itemMenu(it, r.left, r.bottom); } }, '⋯')));
+  });
+  return box;
+}
+function gridOf(list) {
+  const box = el('div', { class: 'grid' });
+  list.forEach((it, i) => {
+    const pr = pct(it.kind === 'series' ? Lists.entry('S:' + it.id) : Lists.progress(it));
+    const title = it.kind === 'episode' && it.seriesName ? it.seriesName + ' — ' + it.name : it.name;
+    box.append(el('div', { class: 'card', tabindex: '0', role: 'button',
+      onclick: e => { if (!e.target.closest('.more')) openItem(list, i); },
+      onkeydown: e => { if (e.key === 'Enter') openItem(list, i); },
+      oncontextmenu: e => { e.preventDefault(); itemMenu(it, e.clientX, e.clientY); } },
+      el('div', { class: 'ps' }, el('img', { src: it.logo || poster(it.name, 215), alt: '', loading: 'lazy', onerror: e => e.target.src = poster(it.name, 215) }), pr ? progressBar(pr) : null),
+      el('b', { text: title }), subOf(it) ? el('small', { text: subOf(it) }) : null,
+      el('button', { class: 'more', 'aria-label': 'خيارات', onclick: e => { const r = e.currentTarget.getBoundingClientRect(); itemMenu(it, r.left, r.bottom); } }, '⋯')));
+  });
+  return box;
+}
+function refreshView() {
+  if (!$('#details').hidden && Details.item) Details.refresh();
+  if (S.cat && S.cat.startsWith('@') && S.cat !== '@all') openCat(S.cat);
+  else if (current.list.length) renderItems(current.list, current.empty, current.sort);
+}
+
+/* Options menu: favorites + removing from continue watching / recent. */
+function itemMenu(it, x, y) {
+  closeMenu();
+  const opts = [];
+  const fav = Lists.isFav(it);
+  opts.push([fav ? '★ إزالة من المفضلة' : '☆ إضافة للمفضلة', () => toast(Lists.toggleFav(it) ? 'انضافت للمفضلة' : 'انشالت من المفضلة')]);
+  if (it.kind !== 'live' && Lists.entry(watchKey(it))) opts.push(['✕ إزالة من متابعة المشاهدة', () => { Lists.remove(watchKey(it)); toast('انشالت من متابعة المشاهدة'); }]);
+  if (it.kind === 'series' && Lists.entry('S:' + it.id)) opts.push(['✕ إزالة من متابعة المشاهدة', () => { Lists.remove('S:' + it.id); toast('انشالت من متابعة المشاهدة'); }]);
+  if (it.kind === 'live' && Lists.recent().some(r => favKey(r) === favKey(it))) opts.push(['✕ إزالة من آخر القنوات', () => Lists.removeRecent(it)]);
+  const m = el('div', { class: 'menu', role: 'menu' }, ...opts.map(([t, fn]) => el('button', { role: 'menuitem', onclick: () => { closeMenu(); fn(); refreshView(); } }, t)));
+  document.body.append(m);
+  const r = m.getBoundingClientRect();
+  m.style.left = Math.max(8, Math.min(x - r.width, innerWidth - r.width - 8)) + 'px';
+  m.style.top = Math.max(8, Math.min(y + 4, innerHeight - r.height - 8)) + 'px';
+  m.querySelector('button').focus();
+  setTimeout(() => document.addEventListener('click', closeMenu, { once: true }), 0);
+}
+function closeMenu() { document.querySelectorAll('.menu').forEach(m => m.remove()); }
+
+/* What opening an item means: details page or straight to the player. */
+function openItem(list, i) {
+  const it = list[i];
+  if (it.kind === 'series') return Details.open(it);
+  if (it.kind === 'movie' && S.provider.hasDetails) return Details.open(it);
+  if (it.kind === 'episode' && it.seriesId && S.provider.hasDetails)
+    return Details.open({ id: it.seriesId, name: it.seriesName, kind: 'series', url: '', logo: it.logo }, it.id);
+  const playable = list.filter(x => x.kind !== 'series');
+  Player.open(playable, Math.max(0, playable.indexOf(it)));
+}
+
+/* =========================================================
+   Details (movie / series with seasons)
+   ========================================================= */
+const Details = {
+  item: null, data: null, episodes: [], season: null,
+  async open(item, autoplayId) {
+    this.item = item; this.data = null; this.episodes = []; this.season = null;
+    const box = $('#details'); box.hidden = false;
+    box.replaceChildren(el('div', { class: 'layer-head' }, el('button', { class: 'btn ghost', onclick: () => this.close() }, '→ رجوع')), el('div', { class: 'spinner' }));
+    try {
+      if (item.kind === 'series') { const r = await S.provider.seriesInfo(item); this.data = r.details; this.episodes = r.episodes; }
+      else this.data = await S.provider.vodInfo(item);
+    } catch (e) { this.data = { title: item.name, poster: item.logo, error: e.message }; }
+    if (this.item !== item) return;
+    const cur = Lists.entry('S:' + item.id);
+    const seasons = [...new Set(this.episodes.map(e => e.group))];
+    this.season = cur && seasons.includes(cur.it.group) ? cur.it.group : seasons[0];
+    this.render();
+    if (autoplayId) { const ep = this.episodes.find(e => e.id === autoplayId); if (ep) this.playEp(ep); }
+  },
+  close() { $('#details').hidden = true; this.item = null; refreshView(); },
+  isSeries() { return this.item.kind === 'series'; },
+  entry() { return this.isSeries() ? Lists.entry('S:' + this.item.id) : Lists.progress(this.item); },
+  favItem() { return this.isSeries() ? { ...this.item, kind: 'series' } : this.item; },
+  render() {
+    const d = this.data, it = this.item, box = $('#details');
+    const meta = [d.release && d.release.slice(0, 4), d.genre, d.rating && '★ ' + d.rating, d.duration].filter(Boolean);
+    const people = [d.director && 'إخراج: ' + d.director, d.cast && 'بطولة: ' + d.cast].filter(Boolean).join('   ·   ');
+    const e = this.entry();
+    let playLabel = this.isSeries() ? '▶ شغّل أول حلقة' : '▶ تشغيل';
+    if (e) {
+      const where = this.isSeries() ? e.it.name.split(' •')[0] + ' ' : '';
+      playLabel = e.pos > 0 ? `▶ متابعة ${where}من ${fmtTime(e.pos)}` : `▶ شغّل ${where}`;
+    }
+    const fav = Lists.isFav(this.favItem());
+    box.replaceChildren(
+      el('div', { class: 'dt-back', style: `background-image:url("${(d.backdrop || d.poster || '').replace(/"/g, '%22')}")` }),
+      el('div', { class: 'layer-head', style: 'position:relative' }, el('button', { class: 'btn ghost', onclick: () => this.close() }, '→ رجوع')),
+      el('div', { class: 'dt-wrap' },
+        el('div', { class: 'dt-top' },
+          el('img', { class: 'dt-poster', src: d.poster || it.logo || poster(d.title, 215), alt: '' }),
+          el('div', {},
+            el('h1', { text: d.title || it.name }),
+            meta.length ? el('div', { class: 'dt-meta' }, ...meta.map(m => el('span', { text: m }))) : null,
+            d.plot ? el('p', { class: 'dt-plot', text: d.plot }) : null,
+            people ? el('p', { class: 'dt-people', text: people }) : null,
+            d.error ? el('p', { class: 'note', text: 'ما قدرت أجيب التفاصيل: ' + d.error }) : null,
+            e && pct(e) ? el('div', { class: 'dt-progress' }, progressBar(pct(e)), el('small', { class: 'num', text: `${fmtTime(e.pos)} / ${fmtTime(e.dur)}` })) : null,
+            el('div', { class: 'dt-actions' },
+              el('button', { class: 'btn primary', id: 'dtPlay', disabled: this.isSeries() && !this.episodes.length, onclick: () => this.play(false) }, playLabel),
+              e && e.pos > 0 ? el('button', { class: 'btn', onclick: () => this.play(true) }, '↺ من البداية') : null,
+              el('button', { class: 'btn', onclick: () => { Lists.toggleFav(this.favItem()); this.render(); } }, fav ? '★ بالمفضلة' : '☆ أضف للمفضلة'),
+              e ? el('button', { class: 'btn ghost', onclick: () => { Lists.remove(this.isSeries() ? 'S:' + it.id : watchKey(it)); toast('انشالت من متابعة المشاهدة'); this.render(); } }, '✕ إزالة من المتابعة') : null))),
+        this.isSeries() ? this.seriesBlock() : null));
+    const b = $('#dtPlay'); if (b) b.focus();
+  },
+  seriesBlock() {
+    const seasons = [...new Set(this.episodes.map(e => e.group))];
+    if (!this.episodes.length) return el('div', { class: 'empty' }, 'ما في حلقات');
+    const eps = this.episodes.filter(e => e.group === this.season);
+    return el('div', {},
+      seasons.length > 1 ? el('div', { class: 'seasons', style: 'margin-bottom:12px' }, ...seasons.map(s =>
+        el('button', { class: 'chip', 'aria-pressed': String(s === this.season), onclick: () => { this.season = s; this.render(); } }, 'الموسم ' + s))) : el('h3', { class: 'section-title', text: 'الحلقات' }),
+      el('div', { class: 'eplist' }, ...eps.map(ep => {
+        const pr = pct(Lists.progress(ep));
+        return el('button', { class: 'ep', onclick: () => this.playEp(ep) },
+          el('img', { src: ep.logo || poster(ep.name, 215), alt: '', loading: 'lazy' }),
+          el('div', {}, el('b', { text: ep.name }), pr ? el('small', { text: `شاهدت ${pr}%` }) : null, pr ? progressBar(pr) : null),
+          el('span', { class: 'more', 'aria-hidden': 'true' }, '▶'));
+      })));
+  },
+  play(fromStart) {
+    if (!this.isSeries()) return Player.open([this.item], 0, fromStart ? 0 : 'resume');
+    const e = this.entry();
+    const ep = (e && this.episodes.find(x => x.url === e.it.url)) || this.episodes[0];
+    if (ep) this.playEp(ep, fromStart ? 0 : 'resume');
+  },
+  playEp(ep, start = 'resume') { Player.open(this.episodes, this.episodes.indexOf(ep), start); },
+  refresh() { if (this.data) this.render(); },
+};
+
+/* =========================================================
+   Search across the whole server
+   ========================================================= */
+const Search = {
+  all: null, kind: '', loading: false, timer: 0,
+  async open() {
+    $('#search').hidden = false; const q = $('#q'); q.value = ''; q.focus();
+    $('#qResults').replaceChildren(); this.status('');
+    if (this.all && this.sid === S.sid) return this.run();
+    this.all = null; this.sid = S.sid; this.status('جاري تحميل مكتبة السيرفر للبحث…');
+    const secs = S.provider.hasSections ? ['live', 'movie', 'series'] : ['live'];
+    const res = await Promise.all(secs.map(sec => {
+      const key = sec + ':*';
+      return (S.cache[key] ? Promise.resolve(S.cache[key]) : S.provider.items(sec, null).then(l => S.cache[key] = l)).catch(() => []);
+    }));
+    this.all = res.flat();
+    this.status(this.all.length ? `جاهز — ${this.all.length} عنصر` : 'ما قدرت أحمّل مكتبة السيرفر');
+    this.run();
+  },
+  close() { $('#search').hidden = true; refreshView(); },
+  status(t) { $('#qStatus').textContent = t; },
+  run() {
+    const box = $('#qResults');
+    const q = $('#q').value.trim().toLowerCase();
+    if (!this.all) return;
+    if (q.length < 2) { box.replaceChildren(el('div', { class: 'empty' }, 'اكتب حرفين أو أكثر')); return; }
+    const words = q.split(/\s+/);
+    const order = { live: 0, movie: 1, series: 2, episode: 3 };
+    const res = this.all.filter(x => (!this.kind || x.kind === this.kind) && words.every(w => x.name.toLowerCase().includes(w)))
+      .sort((a, b) => (b.name.toLowerCase().startsWith(words[0]) - a.name.toLowerCase().startsWith(words[0])) || order[a.kind] - order[b.kind])
+      .slice(0, 300);
+    box.replaceChildren(res.length ? rowsOf(res, { kindLabel: true }) : el('div', { class: 'empty' }, `ما في نتائج لـ "${$('#q').value.trim()}"`));
+  },
+};
+$('#q').addEventListener('input', () => { clearTimeout(Search.timer); Search.timer = setTimeout(() => Search.run(), 200); });
+$('#qFilters').addEventListener('click', e => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  Search.kind = b.dataset.k;
+  document.querySelectorAll('#qFilters .chip').forEach(c => c.setAttribute('aria-pressed', String(c === b)));
+  Search.run();
+});
+
+/* =========================================================
+   Player
+   ========================================================= */
+const QUALITY_CAPS = [[0, 'تلقائي (أفضل جودة متاحة)'], [2160, '4K كحد أقصى'], [1080, 'Full HD 1080p كحد أقصى'], [720, 'HD 720p كحد أقصى'], [480, '480p كحد أقصى (توفير نت)'], [360, '360p كحد أقصى']];
+const FITS = [['contain', 'ملاءمة (بدون قص)'], ['cover', 'تكبير (ملء مع قص)'], ['fill', 'تمديد (ملء بدون قص)']];
+const SUB_SIZES = [[1.1, 'صغير'], [1.6, 'عادي'], [2.1, 'كبير'], [2.7, 'كبير جداً'], [3.4, 'ضخم']];
+const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+const settings = Object.assign({ cap: 0, fit: 'contain', sub: 1.6, subLang: 'ar' }, LS.get('settings', {}));
+const saveSettings = () => LS.set('settings', settings);
+
+const Player = {
+  list: [], idx: 0, hls: null, ts: null, tries: 0, triedHls: false, usingFallback: false, idleTimer: 0, saveTimer: 0, osdTimer: 0, zapTimer: 0, pending: -1,
+  v: $('#video'),
+  get it() { return this.list[this.idx]; },
+  isLive() { return this.it && this.it.kind === 'live'; },
+  open(list, idx, start = 'resume') {
+    this.list = list; $('#player').hidden = false;
+    $('#pListBtn').hidden = list.length < 2;
+    $('#pListLbl').textContent = list[0] && list[0].kind === 'live' ? 'القنوات' : 'الحلقات';
+    this.applyLook(); this.wake();
+    clearInterval(this.saveTimer); this.saveTimer = setInterval(() => this.saveProgress(), 5000);
+    this.play(idx, start);
+  },
+  close() {
+    this.saveProgress(); this.stop(); clearInterval(this.saveTimer);
+    $('#pSheet').hidden = true; $('#player').hidden = true;
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    refreshView();
+  },
+  stop() {
+    if (this.hls) { this.hls.destroy(); this.hls = null; }
+    if (this.ts) { try { this.ts.destroy(); } catch {} this.ts = null; }
+    this.v.removeAttribute('src'); this.v.load();
+  },
+  play(i, start = 'resume') {
+    this.saveProgress();
+    this.idx = i; const it = this.it;
+    this.tries = 0; this.triedHls = false; this.usingFallback = false;
+    $('#pTitle').textContent = it.name;
+    $('#pSub').textContent = it.kind === 'live' ? '' : (it.seriesName || '');
+    this.setCenter('loading');
+    let pos = 0, resumed = false;
+    if (start === 'resume') { const e = Lists.progress(it); if (it.kind !== 'live' && e && e.pos > 10 && pct(e) < 95) { pos = e.pos; resumed = true; } }
+    else pos = +start || 0;
+    this.osd(resumed ? 'متابعة من ' + fmtTime(pos) : (this.list.length > 1 ? `<span class="ch">${i + 1}</span>` + esc(it.name) : esc(it.name)));
+    if (it.kind === 'live') Lists.addRecent(it);
+    this.load(it.url, pos);
+    if (!$('#pSheet').hidden && this.sheetMode === 'list') this.showList();
+  },
+  load(url, pos, forceHls) {
+    this.stop();
+    const v = this.v, it = this.it;
+    const isHls = forceHls || /m3u8/i.test(url);
+    const isTs = /\.ts(\?|$)/i.test(url);
+    if (isHls && window.Hls && Hls.isSupported()) {
+      const hls = this.hls = new Hls({ startPosition: pos > 0 ? pos : -1, enableWorker: true });
+      hls.on(Hls.Events.MANIFEST_PARSED, () => { this.applyCap(); v.play().catch(() => {}); });
+      hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, () => this.pickDefaultSubs());
+      hls.on(Hls.Events.LEVEL_SWITCHED, () => this.updateRes());
+      hls.on(Hls.Events.ERROR, (_, d) => {
+        if (!d.fatal) return;
+        if (d.type === Hls.ErrorTypes.MEDIA_ERROR && this.tries < 2) { this.tries++; hls.recoverMediaError(); return; }
+        this.fail(d.details || d.type, pos);
+      });
+      hls.loadSource(url); hls.attachMedia(v);
+    } else if (isHls && v.canPlayType('application/vnd.apple.mpegurl')) {
+      v.src = url; this.afterNative(pos);
+    } else if (isTs && window.mpegts && mpegts.isSupported()) {
+      const p = this.ts = mpegts.createPlayer({ type: 'mpegts', isLive: it.kind === 'live', url });
+      p.on(mpegts.Events.ERROR, () => this.fail('mpegts', pos));
+      p.attachMediaElement(v); p.load(); v.play().catch(() => {});
+    } else {
+      v.src = url; this.afterNative(pos);
+    }
+  },
+  afterNative(pos) {
+    const v = this.v;
+    if (pos > 0) v.addEventListener('loadedmetadata', () => { v.currentTime = pos; }, { once: true });
+    v.play().catch(() => {});
+  },
+  /* Try the next way of opening the stream: force HLS, then the fallback url (.ts ↔ .m3u8), then give up. */
+  fail(reason, pos) {
+    const it = this.it, v = this.v;
+    const at = it.kind === 'live' ? 0 : (v.currentTime || pos || 0);
+    const url = this.usingFallback ? it.fallback : it.url;
+    if (!this.triedHls && !/m3u8/i.test(url) && !/\.(mp4|mkv|ts|webm|mov)(\?|$)/i.test(url)) { this.triedHls = true; return this.load(url, at, true); }
+    if (it.fallback && !this.usingFallback) { this.usingFallback = true; this.triedHls = false; return this.load(it.fallback, at); }
+    this.stop();
+    this.setCenter('error', reason);
+  },
+  setCenter(mode, reason) {
+    const c = $('#pCenter');
+    if (mode === 'loading') c.replaceChildren(el('div', { class: 'spinner' }));
+    else if (mode === 'error') c.replaceChildren(el('div', { class: 'p-error' }, el('b', { text: 'تعذّر تشغيل البث' }),
+      'إما السيرفر مش متاح، أو المتصفح منع الاتصال فيه (أغلب سيرفرات IPTV ما بتسمح للمتصفحات). تطبيق الأندرويد بيشغّل هاي الروابط عادي.',
+      el('div', { class: 'num', style: 'opacity:.55;font-size:12px;margin-top:6px', text: reason || '' }),
+      el('div', { style: 'margin-top:12px;display:flex;gap:8px;justify-content:center' },
+        el('button', { class: 'pbtn', onclick: () => this.play(this.idx) }, 'حاول مرة ثانية'),
+        this.list.length > 1 ? el('button', { class: 'pbtn', onclick: () => this.zap(1, true) }, 'التالي') : null)));
+    else c.replaceChildren();
+  },
+  saveProgress(finished) {
+    const it = this.it, v = this.v;
+    if (!it || it.kind === 'live' || $('#player').hidden) return;
+    const dur = v.duration;
+    if (!isFinite(dur) || dur <= 0) return;
+    if (finished || v.currentTime > dur * 0.95) {
+      Lists.remove(watchKey(it));
+      const next = this.list[this.idx + 1];
+      if (it.kind === 'episode' && next && watchKey(next) === watchKey(it)) Lists.save(next, 0, 0);
+    } else if (v.currentTime > 5) Lists.save(it, v.currentTime, dur);
+  },
+  ended() {
+    const it = this.it;
+    if (it.kind === 'live') return this.play(this.idx);
+    this.saveProgress(true);
+    if (it.kind === 'episode' && this.idx + 1 < this.list.length) { this.osd('الحلقة الجاية…'); this.play(this.idx + 1, 0); }
+    else this.close();
+  },
+  zap(d, now) {
+    if (this.list.length < 2) return;
+    const from = this.pending >= 0 ? this.pending : this.idx;
+    this.pending = (from + d + this.list.length) % this.list.length;
+    this.osd(`<span class="ch">${this.pending + 1}</span>` + esc(this.list[this.pending].name));
+    clearTimeout(this.zapTimer);
+    this.zapTimer = setTimeout(() => { const i = this.pending; this.pending = -1; this.play(i); }, now ? 0 : 450);
+  },
+  osd(html) {
+    const o = $('#pOsd'); o.innerHTML = html; o.hidden = false;
+    clearTimeout(this.osdTimer); this.osdTimer = setTimeout(() => o.hidden = true, 2800);
+  },
+  wake() {
+    const p = $('#player'); p.classList.remove('idle');
+    clearTimeout(this.idleTimer);
+    this.idleTimer = setTimeout(() => { if (!this.v.paused && $('#pSheet').hidden) p.classList.add('idle'); }, 3200);
+  },
+  applyLook() {
+    this.v.style.objectFit = settings.fit;
+    $('#player').style.setProperty('--cue', settings.sub + 'rem');
+  },
+  updateRes() {
+    const h = this.v.videoHeight;
+    $('#pRes').textContent = h ? h + 'p' : '';
+  },
+  /* ---- quality ---- */
+  levels() { return this.hls ? this.hls.levels.map((l, i) => ({ i, h: l.height, br: l.bitrate })).filter(l => l.h).sort((a, b) => b.h - a.h) : []; },
+  applyCap() {
+    if (!this.hls) return;
+    const cap = settings.cap;
+    if (!cap) { this.hls.autoLevelCapping = -1; return; }
+    let best = -1, bestH = 0;
+    this.hls.levels.forEach((l, i) => { if (l.height && l.height <= cap && l.height >= bestH) { best = i; bestH = l.height; } });
+    this.hls.autoLevelCapping = best;
+  },
+  /* ---- subtitles ---- */
+  subTracks() {
+    if (this.hls && this.hls.subtitleTracks.length)
+      return this.hls.subtitleTracks.map((t, i) => ({ label: t.name || langName(t.lang) || 'ترجمة ' + (i + 1), lang: t.lang, on: this.hls.subtitleTrack === i, set: () => { this.hls.subtitleDisplay = true; this.hls.subtitleTrack = i; } }));
+    return [...this.v.textTracks].filter(t => t.kind === 'subtitles' || t.kind === 'captions').map((t, i, all) => ({
+      label: t.label || langName(t.language) || 'ترجمة ' + (i + 1), lang: t.language, on: t.mode === 'showing',
+      set: () => all.forEach(x => x.mode = x === t ? 'showing' : 'disabled') }));
+  },
+  subsOff() {
+    if (this.hls) { this.hls.subtitleTrack = -1; this.hls.subtitleDisplay = false; }
+    [...this.v.textTracks].forEach(t => t.mode = 'disabled');
+  },
+  pickDefaultSubs() {
+    if (!settings.subLang) return;
+    const t = this.subTracks().find(x => (x.lang || '').toLowerCase().startsWith(settings.subLang));
+    if (t) t.set();
+  },
+  /* ---- audio ---- */
+  audioTracks() {
+    if (!this.hls || this.hls.audioTracks.length < 2) return [];
+    return this.hls.audioTracks.map((t, i) => ({ label: [t.name, langName(t.lang)].filter(Boolean).filter((x, j, a) => a.indexOf(x) === j).join(' • ') || 'صوت ' + (i + 1), on: this.hls.audioTrack === i, set: () => this.hls.audioTrack = i }));
+  },
+  /* ---- side sheet (settings / list) ---- */
+  sheetMode: null,
+  sheet(title, nodes) {
+    $('#pSheetTitle').textContent = title;
+    $('#pSheetBody').replaceChildren(...nodes);
+    $('#pSheet').hidden = false; $('#player').classList.remove('idle');
+    const f = $('#pSheetBody [aria-current="true"], #pSheetBody [aria-checked="true"], #pSheetBody button'); if (f) f.focus();
+  },
+  closeSheet() { $('#pSheet').hidden = true; this.sheetMode = null; this.wake(); },
+  opt(k, v, fn, checked) {
+    return el('button', { class: 'opt', role: checked == null ? 'button' : 'menuitemradio', 'aria-checked': checked == null ? null : String(!!checked), onclick: fn },
+      el('span', { class: 'k', text: k }), v != null ? el('span', { class: 'v', text: v }) : null);
+  },
+  showSettings() {
+    this.sheetMode = 'settings';
+    const h = this.v.videoHeight, subs = this.subTracks(), sOn = subs.find(s => s.on), aud = this.audioTracks();
+    const capName = QUALITY_CAPS.find(c => c[0] === settings.cap)[1];
+    const items = [
+      this.opt('الجودة', (h ? h + 'p الآن • ' : '') + capName.split(' (')[0], () => this.showQuality()),
+      this.opt('الترجمة', subs.length ? (sOn ? sOn.label : 'إيقاف') : 'غير متوفرة', () => this.showSubs()),
+      this.opt('الصوت', aud.length ? (aud.find(a => a.on) || {}).label || 'افتراضي' : 'مسار واحد', () => this.showAudio()),
+      this.opt('حجم الشاشة', FITS.find(f => f[0] === settings.fit)[1].split(' (')[0], () => this.showFit()),
+      this.opt('حجم الترجمة', SUB_SIZES.find(s => s[0] === settings.sub)?.[1] || 'عادي', () => this.showSubSize()),
+    ];
+    if (!this.isLive()) items.push(this.opt('سرعة التشغيل', this.v.playbackRate + 'x', () => this.showSpeed()));
+    if (this.list.length > 1) items.push(this.opt(this.isLive() ? 'قائمة القنوات' : 'قائمة الحلقات', '☰', () => this.showList()));
+    this.sheet('الإعدادات', items);
+  },
+  back() { return el('button', { class: 'opt', onclick: () => this.showSettings() }, el('span', { class: 'k', text: '→ رجوع' })); },
+  showQuality() {
+    const lv = this.levels(), h = this.v.videoHeight;
+    const note = lv.length <= 1
+      ? `السيرفر بيبعت جودة وحدة بس${h ? ' (' + h + 'p)' : ''}. بتقدر تحط حد أقصى، بس ما في مشغّل بيقدر يرفع الجودة عن اللي بيبعته السيرفر.`
+      : `متوفر ${lv.length} جودات من السيرفر. "تلقائي" بيختار حسب سرعة النت.`;
+    const manual = this.hls && this.hls.currentLevel >= 0 && !this.hls.autoLevelEnabled;
+    this.sheet('الجودة', [this.back(), el('div', { class: 'opt-note', text: note }),
+      el('div', { class: 'opt-group', text: 'تلقائي مع حد أقصى (بيتذكّره)' }),
+      ...QUALITY_CAPS.map(([cap, name]) => this.opt(name, null, () => {
+        settings.cap = cap; saveSettings(); if (this.hls) this.hls.currentLevel = -1; this.applyCap(); this.osd('الجودة: ' + name); this.showQuality();
+      }, !manual && settings.cap === cap)),
+      lv.length > 1 ? el('div', { class: 'opt-group', text: 'جودة محدّدة' }) : null,
+      ...(lv.length > 1 ? lv.map(l => this.opt(l.h + 'p', l.br ? (l.br / 1e6).toFixed(1) + ' Mbps' : null, () => {
+        this.hls.currentLevel = l.i; this.osd('الجودة: ' + l.h + 'p'); this.showQuality();
+      }, manual && this.hls.currentLevel === l.i)) : [])]);
+  },
+  showSubs() {
+    const subs = this.subTracks();
+    if (!subs.length) return this.sheet('الترجمة', [this.back(), el('div', { class: 'opt-note', text: 'ما في ترجمة بهاد الفيديو.' })]);
+    this.sheet('الترجمة', [this.back(),
+      this.opt('إيقاف الترجمة', null, () => { this.subsOff(); settings.subLang = ''; saveSettings(); this.osd('الترجمة: إيقاف'); this.showSubs(); }, !subs.some(s => s.on)),
+      ...subs.map(s => this.opt(s.label, s.lang || null, () => { s.set(); settings.subLang = (s.lang || '').slice(0, 2).toLowerCase(); saveSettings(); this.osd('الترجمة: ' + s.label); this.showSubs(); }, s.on))]);
+  },
+  showAudio() {
+    const a = this.audioTracks();
+    if (!a.length) return this.sheet('الصوت', [this.back(), el('div', { class: 'opt-note', text: 'في مسار صوت واحد بس.' })]);
+    this.sheet('الصوت', [this.back(), ...a.map(t => this.opt(t.label, null, () => { t.set(); this.osd('الصوت: ' + t.label); setTimeout(() => this.showAudio(), 50); }, t.on))]);
+  },
+  showFit() {
+    this.sheet('حجم الشاشة', [this.back(), ...FITS.map(([k, n]) => this.opt(n, null, () => { settings.fit = k; saveSettings(); this.applyLook(); this.osd('حجم الشاشة: ' + n.split(' (')[0]); this.showFit(); }, settings.fit === k))]);
+  },
+  cycleFit() {
+    const i = (FITS.findIndex(f => f[0] === settings.fit) + 1) % FITS.length;
+    settings.fit = FITS[i][0]; saveSettings(); this.applyLook(); this.osd('حجم الشاشة: ' + FITS[i][1].split(' (')[0]);
+  },
+  showSubSize() {
+    this.sheet('حجم الترجمة', [this.back(), ...SUB_SIZES.map(([k, n]) => this.opt(n, null, () => { settings.sub = k; saveSettings(); this.applyLook(); this.showSubSize(); }, settings.sub === k))]);
+  },
+  showSpeed() {
+    this.sheet('سرعة التشغيل', [this.back(), ...SPEEDS.map(s => this.opt(s + 'x', null, () => { this.v.playbackRate = s; this.showSpeed(); }, this.v.playbackRate === s))]);
+  },
+  showList() {
+    this.sheetMode = 'list';
+    const live = this.isLive();
+    let lastSeason = null;
+    const nodes = [];
+    this.list.forEach((it, i) => {
+      if (!live && it.group && it.group !== lastSeason && new Set(this.list.map(x => x.group)).size > 1) { lastSeason = it.group; nodes.push(el('div', { class: 'opt-group', text: 'الموسم ' + it.group })); }
+      const pr = live ? 0 : pct(Lists.progress(it));
+      nodes.push(el('button', { class: 'li', 'aria-current': String(i === this.idx), onclick: () => { this.closeSheet(); if (i !== this.idx) this.play(i); } },
+        el('span', { class: 'no', text: i + 1 }), el('img', { src: it.logo || logo('TV', 215), alt: '' }),
+        el('span', {}, el('span', { class: 'nm', style: 'display:block', text: it.name }), pr ? progressBar(pr) : null)));
+    });
+    this.sheet(live ? 'القنوات' : 'الحلقات', nodes);
+    const cur = $('#pSheetBody [aria-current="true"]'); if (cur) cur.scrollIntoView({ block: 'center' });
+  },
+};
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function langName(code) {
+  if (!code || code === 'und') return '';
+  try { return new Intl.DisplayNames(['ar'], { type: 'language' }).of(code) || code; } catch { return code; }
+}
+
+/* player wiring */
+(() => {
+  const v = Player.v, seek = $('#pSeek');
+  let dragging = false;
+  v.addEventListener('playing', () => { Player.setCenter(''); Player.updateRes(); $('#pPlay').textContent = '⏸'; });
+  v.addEventListener('pause', () => { $('#pPlay').textContent = '▶'; Player.saveProgress(); Player.wake(); });
+  v.addEventListener('waiting', () => Player.setCenter('loading'));
+  v.addEventListener('canplay', () => { if ($('#pCenter .spinner')) Player.setCenter(''); });
+  v.addEventListener('resize', () => Player.updateRes());
+  v.addEventListener('ended', () => Player.ended());
+  v.addEventListener('loadedmetadata', () => { if (!Player.hls) Player.pickDefaultSubs(); });
+  v.addEventListener('error', () => { if (!Player.hls && !Player.ts && v.getAttribute('src')) Player.fail('MEDIA_ERR_' + (v.error ? v.error.code : '?'), v.currentTime); });
+  v.addEventListener('timeupdate', () => {
+    const live = Player.isLive() || !isFinite(v.duration);
+    seek.hidden = live;
+    $('#pBack10').hidden = $('#pFwd10').hidden = live;
+    if (live) { $('#pTime').replaceChildren(el('span', { class: 'livepill', text: 'LIVE' })); return; }
+    if (!dragging) seek.value = v.duration ? Math.round(v.currentTime / v.duration * 1000) : 0;
+    $('#pTime').textContent = fmtTime(v.currentTime) + ' / ' + fmtTime(v.duration);
+  });
+  seek.addEventListener('input', () => { dragging = true; $('#pTime').textContent = fmtTime(seek.value / 1000 * v.duration) + ' / ' + fmtTime(v.duration); });
+  seek.addEventListener('change', () => { dragging = false; v.currentTime = seek.value / 1000 * v.duration; });
+  $('#pPlay').onclick = () => v.paused ? v.play() : v.pause();
+  $('#pBack10').onclick = () => v.currentTime = Math.max(0, v.currentTime - 10);
+  $('#pFwd10').onclick = () => v.currentTime = Math.min(v.duration || 0, v.currentTime + 10);
+  $('#pPrev').onclick = () => Player.zap(-1, true);
+  $('#pNext').onclick = () => Player.zap(1, true);
+  $('#pClose').onclick = () => Player.close();
+  $('#pSetBtn').onclick = () => Player.showSettings();
+  $('#pListBtn').onclick = () => Player.showList();
+  $('#pSubsBtn').onclick = () => Player.showSubs();
+  $('#pSheetClose').onclick = () => Player.closeSheet();
+  $('#pFull').onclick = () => document.fullscreenElement ? document.exitFullscreen().catch(() => {}) : $('#player').requestFullscreen().catch(() => toast('ملء الشاشة مش متاح هون'));
+  $('#player').addEventListener('mousemove', () => Player.wake());
+  $('#player').addEventListener('touchstart', () => Player.wake(), { passive: true });
+  v.addEventListener('click', () => { if (!$('#pSheet').hidden) return Player.closeSheet(); v.paused ? v.play() : v.pause(); });
+  v.addEventListener('dblclick', () => $('#pFull').click());
+})();
+
+/* =========================================================
+   Servers dialog
+   ========================================================= */
+function modal(content) {
+  const bg = el('div', { class: 'modal-bg', onclick: e => { if (e.target === bg) bg.remove(); } }, el('div', { class: 'modal', role: 'dialog' }, ...content));
+  $('#modalRoot').replaceChildren(bg);
+  const f = bg.querySelector('input,button'); if (f) f.focus();
+  return bg;
+}
+function closeModal() { $('#modalRoot').replaceChildren(); }
+function serversDialog() {
+  const list = el('div', {}, ...S.servers.map(s => el('div', { class: 'srv', 'aria-current': String(s.id === S.sid) },
+    el('button', { class: 'grow', onclick: () => { closeModal(); selectServer(s.id); } }, el('b', { text: s.name }), el('small', { text: TYPE_LABEL[s.type] + (s.user ? ' • ' + s.user : '') })),
+    s.id !== 'demo' ? el('button', { class: 'btn small ghost', onclick: () => serverForm(s) }, 'تعديل') : null,
+    s.id !== 'demo' ? el('button', { class: 'btn small ghost', onclick: () => confirmDelete(s) }, 'حذف') : null)));
+  modal([el('h3', { text: 'السيرفرات' }), list,
+    el('div', { class: 'row-actions' }, el('button', { class: 'btn', onclick: closeModal }, 'إغلاق'), el('button', { class: 'btn primary', onclick: () => serverForm() }, '+ إضافة سيرفر'))]);
+}
+function confirmDelete(s) {
+  modal([el('h3', { text: 'حذف "' + s.name + '"؟' }), el('p', { class: 'note', text: 'رح تنحذف معه المفضلة ومتابعة المشاهدة الخاصة فيه.' }),
+    el('div', { class: 'row-actions' }, el('button', { class: 'btn', onclick: serversDialog }, 'إلغاء'),
+      el('button', { class: 'btn primary', onclick: () => {
+        S.servers = S.servers.filter(x => x.id !== s.id); LS.set('servers', S.servers.filter(x => x.id !== 'demo'));
+        ['fav:', 'cw:', 'recent:'].forEach(k => LS.del(k + s.id));
+        if (S.sid === s.id) selectServer('demo'); serversDialog();
+      } }, 'حذف'))]);
+}
+function serverForm(existing) {
+  let type = existing ? existing.type : 'xtream', fmt = existing?.fmt || 'm3u8';
+  const inp = (id, label, val, ph) => el('div', { class: 'field', 'data-f': id }, el('label', { for: 'f_' + id, text: label }), el('input', { id: 'f_' + id, value: val || '', placeholder: ph || '', autocomplete: 'off' }));
+  const typeSeg = el('div', { class: 'seg' }, ...[['xtream', 'Xtream Codes'], ['m3u', 'M3U'], ['direct', 'رابط مباشر']].map(([k, n]) =>
+    el('button', { 'data-k': k, 'aria-pressed': String(k === type), onclick: () => { type = k; update(); } }, n)));
+  const fmtSeg = el('div', { class: 'seg' }, ...[['m3u8', 'HLS (m3u8)'], ['ts', 'MPEG-TS (ts)']].map(([k, n]) =>
+    el('button', { 'data-k': k, 'aria-pressed': String(k === fmt), onclick: () => { fmt = k; update(); } }, n)));
+  const status = el('p', { class: 'note', hidden: true });
+  const body = [
+    el('h3', { text: existing ? 'تعديل السيرفر' : 'إضافة سيرفر' }),
+    el('div', { class: 'field' }, el('label', { text: 'النوع' }), typeSeg),
+    inp('name', 'الاسم (اختياري)', existing?.name),
+    inp('url', 'الرابط', existing?.url, 'http://example.com:8080'),
+    inp('user', 'اسم المستخدم', existing?.user),
+    inp('pass', 'كلمة المرور', existing?.pass),
+    el('div', { class: 'field', 'data-f': 'fmt' }, el('label', { text: 'صيغة البث المباشر' }), fmtSeg),
+    el('p', { class: 'note', text: 'نسخة المتصفح بتشتغل بس مع السيرفرات اللي بتسمح للمتصفحات تتصل فيها (CORS). إذا ما اشتغل سيرفرك هون، تطبيق الأندرويد بيشغّله.' }),
+    status,
+    el('div', { class: 'row-actions' }, el('button', { class: 'btn', onclick: serversDialog }, 'رجوع'), el('button', { class: 'btn primary', onclick: save }, 'حفظ')),
+  ];
+  modal(body);
+  function update() {
+    typeSeg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.k === type)));
+    fmtSeg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.k === fmt)));
+    ['user', 'pass', 'fmt'].forEach(f => document.querySelector(`[data-f="${f}"]`).hidden = type !== 'xtream');
+    $('#f_url').placeholder = type === 'xtream' ? 'http://example.com:8080  أو رابط get.php كامل' : type === 'm3u' ? 'رابط قائمة M3U' : 'رابط البث (m3u8 / mp4 / ts)';
+  }
+  update();
+  async function save() {
+    let url = $('#f_url').value.trim(), user = $('#f_user').value.trim(), pass = $('#f_pass').value.trim();
+    if (!url) { $('#f_url').focus(); return; }
+    if (type === 'xtream') {
+      try { const q = new URL(/^https?:/i.test(url) ? url : 'http://' + url).searchParams; user = user || q.get('username') || ''; pass = pass || q.get('password') || ''; } catch {}
+      if (!user || !pass) { status.hidden = false; status.textContent = 'أدخل اسم المستخدم وكلمة المرور.'; return; }
+    }
+    let host = ''; try { host = new URL(/^https?:/i.test(url) ? url : 'http://' + url).host; } catch {}
+    const s = { id: existing?.id || 's' + Date.now(), type, name: $('#f_name').value.trim() || host || 'سيرفر', url, user, pass, fmt };
+    if (type === 'xtream') {
+      status.hidden = false; status.textContent = 'جاري الاتصال بالسيرفر…';
+      try { const ui = await Xtream(s).login(); status.textContent = 'تم الاتصال ✓ الحالة: ' + (ui.status || '—'); }
+      catch (e) { status.textContent = 'تعذّر الاتصال: ' + e.message + ' — انحفظ السيرفر على أي حال.'; }
+    }
+    S.servers = [DEMO, ...S.servers.filter(x => x.id !== 'demo' && x.id !== s.id), s];
+    LS.set('servers', S.servers.filter(x => x.id !== 'demo'));
+    setTimeout(() => { closeModal(); selectServer(s.id); }, type === 'xtream' ? 900 : 0);
+  }
+}
+
+/* =========================================================
+   Keyboard / TV-remote navigation
+   ========================================================= */
+function spatial(dir) {
+  const cur = document.activeElement;
+  const scope = !$('#player').hidden ? $('#pSheet') : !$('#details').hidden ? $('#details') : !$('#search').hidden ? $('#search') : $('#modalRoot').firstChild || $('#app');
+  const cands = [...scope.querySelectorAll('button:not([disabled]),[tabindex="0"],input,select')].filter(e => e.offsetParent !== null && e !== cur);
+  if (!cur || cur === document.body || !scope.contains(cur)) { cands[0]?.focus(); return; }
+  const a = cur.getBoundingClientRect(), ax = a.left + a.width / 2, ay = a.top + a.height / 2;
+  let best = null, bestD = Infinity;
+  for (const e of cands) {
+    const b = e.getBoundingClientRect(), bx = b.left + b.width / 2, by = b.top + b.height / 2, dx = bx - ax, dy = by - ay;
+    const ok = dir === 'up' ? dy < -4 : dir === 'down' ? dy > 4 : dir === 'left' ? dx < -4 : dx > 4;
+    if (!ok) continue;
+    const d = (dir === 'up' || dir === 'down') ? Math.abs(dy) + Math.abs(dx) * 2.5 : Math.abs(dx) + Math.abs(dy) * 2.5;
+    if (d < bestD) { bestD = d; best = e; }
+  }
+  if (best) { best.focus(); best.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
+}
+document.addEventListener('keydown', e => {
+  const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName) && document.activeElement.type !== 'range';
+  const inPlayer = !$('#player').hidden, sheetOpen = !$('#pSheet').hidden;
+  if (e.key === 'Escape' || e.key === 'Backspace' && !typing) {
+    if (document.querySelector('.menu')) return closeMenu();
+    if ($('#modalRoot').firstChild) return closeModal();
+    if (inPlayer) { e.preventDefault(); return sheetOpen ? Player.closeSheet() : Player.close(); }
+    if (!$('#details').hidden) return Details.close();
+    if (!$('#search').hidden) return Search.close();
+    return;
+  }
+  if (typing && !['ArrowDown', 'ArrowUp'].includes(e.key)) return;
+  const dirs = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
+  if (inPlayer && !sheetOpen) {
+    const v = Player.v; Player.wake();
+    const live = Player.isLive();
+    switch (e.key) {
+      case ' ': case 'k': e.preventDefault(); v.paused ? v.play() : v.pause(); return;
+      case 'ArrowUp': e.preventDefault(); if (live) Player.zap(-1); return;
+      case 'ArrowDown': e.preventDefault(); if (live) Player.zap(1); return;
+      case 'ArrowLeft': e.preventDefault(); if (!live) v.currentTime += 10; return;   // RTL: left = forward
+      case 'ArrowRight': e.preventDefault(); if (!live) v.currentTime -= 10; return;
+      case 'Enter': if (document.activeElement === document.body || document.activeElement === v) { e.preventDefault(); live && Player.list.length > 1 ? Player.showList() : (v.paused ? v.play() : v.pause()); } return;
+      case 'PageUp': case 'ChannelUp': Player.zap(1); return;
+      case 'PageDown': case 'ChannelDown': Player.zap(-1); return;
+      case 'm': case 'ContextMenu': e.preventDefault(); Player.showSettings(); return;
+      case 'l': case 'e': Player.showList(); return;
+      case 's': case 'c': Player.showSubs(); return;
+      case 'z': Player.cycleFit(); return;
+      case 'f': $('#pFull').click(); return;
+      case 'n': Player.zap(1, true); return;
+      case 'p': Player.zap(-1, true); return;
+    }
+    return;
+  }
+  if (dirs[e.key] && !(typing && e.key !== 'ArrowDown' && e.key !== 'ArrowUp')) { e.preventDefault(); spatial(dirs[e.key]); return; }
+  if (e.key === '/' && !typing && $('#search').hidden && !inPlayer) { e.preventDefault(); Search.open(); }
+});
+
+/* =========================================================
+   Boot
+   ========================================================= */
+$('#serverBtn').onclick = serversDialog;
+$('#searchBtn').onclick = () => Search.open();
+document.querySelectorAll('[data-close="search"]').forEach(b => b.onclick = () => Search.close());
+$('#sortSel').value = String(S.sort);
+$('#sortSel').onchange = e => { S.sort = +e.target.value; LS.set('sort', S.sort); if (current.sort) renderItems(current.list, current.empty, true); };
+if (!window.Hls) toast('ما قدرت أحمّل مكتبة HLS. تأكد إنك متصل بالنت.');
+selectServer(server().id);
+</script>
+</body>
+</html>
