@@ -49,6 +49,12 @@
         <item name="android:textStyle">bold</item>
     </style>
 
+    <!-- Main action button (always highlighted) -->
+    <style name="PillPrimary" parent="Pill">
+        <item name="android:background">@drawable/bg_pill_primary</item>
+        <item name="android:textColor">#FFFFFF</item>
+    </style>
+
     <!-- Rounded "pill" buttons: tabs, chips, player controls -->
     <style name="Pill" parent="TvButton">
         <item name="android:background">@drawable/bg_pill</item>

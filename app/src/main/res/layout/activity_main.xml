@@ -50,8 +50,7 @@
 
         <Button
             android:id="@+id/btnAdd"
-            style="@style/Pill"
-            android:activated="true"
+            style="@style/PillPrimary"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/add_server" />
