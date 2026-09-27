@@ -158,6 +158,11 @@ class ProfileStore(context: Context) {
         get() = prefs.getInt("resize", 0)
         set(v) = prefs.edit().putInt("resize", v).apply()
 
+    /** Player screen orientation on phones: 0 landscape, 1 follow device, 2 portrait. */
+    var orientation: Int
+        get() = prefs.getInt("orientation", 0)
+        set(v) = prefs.edit().putInt("orientation", v).apply()
+
     var sortMode: Int
         get() = prefs.getInt("sort", 0)
         set(v) = prefs.edit().putInt("sort", v).apply()

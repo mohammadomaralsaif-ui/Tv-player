@@ -44,7 +44,6 @@ class BrowserActivity : AppCompatActivity() {
         const val FAV_ID = "__fav__"
         const val RECENT_ID = "__recent__"
         const val ALL_ID = "__all__"
-        val SORT_NAMES = arrayOf("ترتيب السيرفر", "الأحدث إضافة", "الاسم (أ-ي)", "الأعلى تقييماً", "الأحدث سنةً")
     }
 
     private lateinit var b: ActivityBrowserBinding
@@ -97,7 +96,6 @@ class BrowserActivity : AppCompatActivity() {
         b.btnSearch.setOnClickListener {
             startActivity(Intent(this, SearchActivity::class.java).putExtra(SearchActivity.EXTRA_PROFILE, profile.id))
         }
-        b.btnSort.setOnClickListener { chooseSort() }
         b.btnRefresh.setOnClickListener { refreshFromServer() }
         applyLayoutForDevice()
 
@@ -133,11 +131,6 @@ class BrowserActivity : AppCompatActivity() {
         } else {
             b.categories.layoutManager = LinearLayoutManager(this)
         }
-        updateSortLabel()
-    }
-
-    private fun updateSortLabel() {
-        b.btnSort.text = if (narrow) "⇅" else "⇅ ${SORT_NAMES[store.sortMode]}"
     }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
@@ -166,7 +159,6 @@ class BrowserActivity : AppCompatActivity() {
         b.tabSeries.isActivated = !home && s == Section.SERIES
         b.homeList.isVisible = home
         b.body.isVisible = !home
-        b.btnSort.isVisible = !home
     }
 
     private fun refreshFromServer() {
@@ -242,18 +234,6 @@ class BrowserActivity : AppCompatActivity() {
         visible(list).filter { it.added > 0 }.sortedByDescending { it.added }.take(30).takeIf { it.isNotEmpty() }
 
     // ---------- sections ----------
-
-    private fun chooseSort() {
-        AlertDialog.Builder(this)
-            .setTitle("الترتيب")
-            .setSingleChoiceItems(SORT_NAMES, store.sortMode) { d, which ->
-                store.sortMode = which
-                updateSortLabel()
-                applySort()
-                d.dismiss()
-            }
-            .show()
-    }
 
     private fun refreshSpecial() {
         progress = store.continueWatching(profile.id).associate { it.channel.url to it.percent }
@@ -406,17 +386,17 @@ class BrowserActivity : AppCompatActivity() {
                     .map { it.channel }
                     .filter { wanted == null || it.kind == wanted }
                     .map { c -> if (c.kind == ItemKind.EPISODE && c.seriesName != null) c.copy(name = "${c.seriesName} — ${c.name}") else c }
-                showItems(list, "لسا ما بلّشت تحضر إشي", sort = false, keepScroll = keepScroll)
+                showItems(list, "لسا ما بلّشت تحضر إشي", keepScroll = keepScroll)
                 return
             }
             FAV_ID -> {
                 val wanted = if (!xt) null else section.kind
                 showItems(store.favorites(profile.id).filter { wanted == null || it.kind == wanted },
-                    "ما في مفضلة لسا\nاضغط ضغطة مطوّلة على أي عنصر لإضافته", sort = false, keepScroll = keepScroll)
+                    "ما في مفضلة لسا\nاضغط ضغطة مطوّلة على أي عنصر لإضافته", keepScroll = keepScroll)
                 return
             }
             RECENT_ID -> {
-                showItems(store.recent(profile.id), "ما حضرت أي قناة لسا", sort = false, keepScroll = keepScroll)
+                showItems(store.recent(profile.id), "ما حضرت أي قناة لسا", keepScroll = keepScroll)
                 return
             }
         }
@@ -448,32 +428,17 @@ class BrowserActivity : AppCompatActivity() {
         }
     }
 
-    private var sortCurrent = true
-
+    /** Items are always shown in the server's own order. */
     private fun showItems(
         list: List<Channel>,
         empty: String? = "لا يوجد محتوى هنا",
-        sort: Boolean = true,
+
         keepScroll: Boolean = false,
     ) {
         val shown = visible(list)
         currentItems = shown
-        sortCurrent = sort
-        itemAdapter.submit(if (sort) sorted(shown) else shown)
+        itemAdapter.submit(shown)
         if (!keepScroll) b.items.scrollToPosition(0)
         if (!b.progress.isVisible) showMessage(if (shown.isEmpty()) empty else null)
-    }
-
-    private fun applySort() {
-        itemAdapter.submit(if (sortCurrent) sorted(currentItems) else currentItems)
-        b.items.scrollToPosition(0)
-    }
-
-    private fun sorted(list: List<Channel>): List<Channel> = when (store.sortMode) {
-        1 -> list.sortedByDescending { it.added }
-        2 -> list.sortedBy { it.name.lowercase() }
-        3 -> list.sortedByDescending { it.rating.toDoubleOrNull() ?: -1.0 }
-        4 -> list.sortedByDescending { it.year.take(4).toIntOrNull() ?: 0 }
-        else -> list
     }
 }

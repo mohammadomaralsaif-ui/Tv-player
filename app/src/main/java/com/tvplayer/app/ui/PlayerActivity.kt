@@ -57,18 +57,30 @@ import java.util.Locale
  * Remote: ▲▼ / CH± change channel (live) • OK on live opens the channel list
  *         MENU opens settings • BACK closes panels, then exits.
  */
+/** One "screen size" choice. [ratio] > 0 forces that aspect ratio. */
+class AspectMode(val name: String, val resize: Int, val ratio: Float = 0f)
+
 @OptIn(UnstableApi::class)
 class PlayerActivity : AppCompatActivity() {
     private companion object {
         const val MAX_RETRIES = 4
         const val SAVE_EVERY_MS = 10_000L
         val PROGRESSIVE_EXT = listOf(".ts", ".mp4", ".mkv", ".avi", ".mov", ".webm", ".m4v", ".mp3", ".aac", ".flv")
-        val RESIZE_MODES = intArrayOf(
-            AspectRatioFrameLayout.RESIZE_MODE_FIT,
-            AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
-            AspectRatioFrameLayout.RESIZE_MODE_FILL,
+        /** Screen size options: how the video fills the screen, optionally forcing an aspect ratio. */
+        val ASPECTS = arrayOf(
+            AspectMode("تلقائي (الصورة كاملة بدون قص)", AspectRatioFrameLayout.RESIZE_MODE_FIT),
+            AspectMode("ملء الشاشة (مع قص الأطراف)", AspectRatioFrameLayout.RESIZE_MODE_ZOOM),
+            AspectMode("تمديد لملء الشاشة", AspectRatioFrameLayout.RESIZE_MODE_FILL),
+            AspectMode("16:9", AspectRatioFrameLayout.RESIZE_MODE_FIT, 16f / 9f),
+            AspectMode("4:3", AspectRatioFrameLayout.RESIZE_MODE_FIT, 4f / 3f),
+            AspectMode("21:9 (سينما)", AspectRatioFrameLayout.RESIZE_MODE_FIT, 21f / 9f),
+            AspectMode("18:9", AspectRatioFrameLayout.RESIZE_MODE_FIT, 2f),
         )
-        val RESIZE_NAMES = arrayOf("ملاءمة (بدون قص)", "تكبير (ملء مع قص)", "تمديد (ملء بدون قص)")
+        val ORIENTATIONS = arrayOf(
+            "أفقي (يلف مع الجهاز)" to android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE,
+            "حسب تدوير الجهاز (أفقي وعمودي)" to android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR,
+            "عمودي" to android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT,
+        )
         val QUALITY_CAPS = intArrayOf(0, 2160, 1080, 720, 480, 360)
         val QUALITY_NAMES = arrayOf("تلقائي (أفضل جودة متاحة)", "4K كحد أقصى", "Full HD 1080p كحد أقصى", "HD 720p كحد أقصى", "480p كحد أقصى (توفير نت)", "360p كحد أقصى")
         val SUB_SCALES = floatArrayOf(0.75f, 1f, 1.3f, 1.6f, 2f)
@@ -153,7 +165,9 @@ class PlayerActivity : AppCompatActivity() {
                 )
             )
         }
-        b.playerView.resizeMode = RESIZE_MODES[store.resizeIndex.coerceIn(0, RESIZE_MODES.size - 1)]
+        applyAspect()
+        if (!Device.isTv(this)) requestedOrientation = ORIENTATIONS[store.orientation.coerceIn(0, ORIENTATIONS.size - 1)].second
+        b.btnAspect.setOnClickListener { cycleResize() }
         b.playerView.setControllerVisibilityListener(
             PlayerView.ControllerVisibilityListener { v -> if (!b.listPanel.isVisible) b.topBar.visibility = v }
         )
@@ -272,6 +286,7 @@ class PlayerActivity : AppCompatActivity() {
     private fun isLive() = items.getOrNull(index)?.kind == ItemKind.LIVE
 
     private fun startItem(i: Int, position: Long) {
+        if (i != index) extraSubs.clear() // loaded subtitle files belong to one video
         saveProgress() // remember where we were in the previous item
         index = i
         playToken++
@@ -344,12 +359,15 @@ class PlayerActivity : AppCompatActivity() {
     private fun buildSource(item: Channel, url: String, mime: String?): MediaSource {
         val headers = HashMap(item.headers)
         val ua = headers.remove("User-Agent") ?: Http.ua(PlayerQueue.userAgent)
-        val dataSource = OkHttpDataSource.Factory(Http.client)
+        val http = OkHttpDataSource.Factory(Http.client)
             .setUserAgent(ua)
             .setDefaultRequestProperties(headers)
+        // DefaultDataSource = http(s) through OkHttp, plus local files / content:// (subtitle files).
+        val dataSource = androidx.media3.datasource.DefaultDataSource.Factory(this, http)
         val mediaItem = MediaItem.Builder()
             .setUri(url)
             .setMediaMetadata(MediaMetadata.Builder().setTitle(item.name).build())
+            .setSubtitleConfigurations(extraSubs.toList())
             .apply { if (mime != null) setMimeType(mime) }
             .build()
         return DefaultMediaSourceFactory(dataSource, extractors).createMediaSource(mediaItem)
@@ -368,6 +386,8 @@ class PlayerActivity : AppCompatActivity() {
         }
 
         override fun onPlayerError(error: PlaybackException) = handleError(error)
+
+        override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) = applyAspect()
     }
 
     private fun handleError(error: PlaybackException) {
@@ -456,16 +476,20 @@ class PlayerActivity : AppCompatActivity() {
 
     // ---------- settings ----------
 
-    private data class TrackOpt(val label: String, val group: Tracks.Group, val index: Int, val selected: Boolean)
+    private data class TrackOpt(val label: String, val group: Tracks.Group, val index: Int, val selected: Boolean, val supported: Boolean = true)
 
-    private fun tracksOf(type: Int): List<TrackOpt> {
+    private fun tracksOf(type: Int, includeUnsupported: Boolean = false): List<TrackOpt> {
         val p = exo ?: return emptyList()
         val out = ArrayList<TrackOpt>()
         for (g in p.currentTracks.groups) {
             if (g.type != type) continue
             for (i in 0 until g.length) {
-                if (!g.isTrackSupported(i)) continue
-                out += TrackOpt(trackLabel(g.getTrackFormat(i), type, out.size + 1), g, i, g.isTrackSelected(i))
+                val ok = g.isTrackSupported(i)
+                if (!ok && !includeUnsupported) continue
+                val f = g.getTrackFormat(i)
+                var label = trackLabel(f, type, out.size + 1)
+                if (!ok) label += "  ⚠ صيغة مش مدعومة (${f.codecs ?: f.sampleMimeType ?: "?"})"
+                out += TrackOpt(label, g, i, g.isTrackSelected(i), ok)
             }
         }
         return if (type == C.TRACK_TYPE_VIDEO) out.sortedByDescending { it.group.getTrackFormat(it.index).height } else out
@@ -492,7 +516,7 @@ class PlayerActivity : AppCompatActivity() {
         val p = exo ?: return
         b.playerView.hideController()
         val height = p.videoSize.height
-        val subs = tracksOf(C.TRACK_TYPE_TEXT)
+        val subs = tracksOf(C.TRACK_TYPE_TEXT, includeUnsupported = true)
         val textOff = p.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)
         val subNow = if (textOff) "إيقاف" else subs.firstOrNull { it.selected }?.label ?: if (subs.isEmpty()) "غير متوفرة" else "إيقاف"
         val audioNow = tracksOf(C.TRACK_TYPE_AUDIO).firstOrNull { it.selected }?.label ?: "افتراضي"
@@ -501,10 +525,14 @@ class PlayerActivity : AppCompatActivity() {
             "🎞  الجودة: ${if (height > 0) "${height}p الآن" else "—"} • ${QUALITY_NAMES[qualityIndex()]}",
             "💬  الترجمة: $subNow",
             "🔊  الصوت: $audioNow",
-            "🖥  حجم الشاشة: ${RESIZE_NAMES[store.resizeIndex.coerceIn(0, RESIZE_NAMES.size - 1)]}",
+            "🖥  حجم الشاشة: ${ASPECTS[store.resizeIndex.coerceIn(0, ASPECTS.size - 1)].name}",
             "🔠  حجم الترجمة: ${SUB_NAMES[SUB_SCALES.indexOfFirst { it == store.subtitleScale }.coerceAtLeast(1)]}",
         )
         val actions = arrayListOf<() -> Unit>(::chooseQuality, ::chooseSubtitle, ::chooseAudio, ::chooseResize, ::chooseSubSize)
+        if (!Device.isTv(this)) {
+            labels += "🔄  اتجاه الشاشة: ${ORIENTATIONS[store.orientation.coerceIn(0, ORIENTATIONS.size - 1)].first}"
+            actions += ::chooseOrientation
+        }
         if (!isLive()) {
             labels += "⏩  سرعة التشغيل: ${p.playbackParameters.speed}x"
             actions += ::chooseSpeed
@@ -557,32 +585,87 @@ class PlayerActivity : AppCompatActivity() {
             .show()
     }
 
+    /** Subtitle files the user loaded from the device for the current item. */
+    private val extraSubs = ArrayList<MediaItem.SubtitleConfiguration>()
+
+    private val pickSubtitle = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) addSubtitleFile(uri)
+    }
+
     private fun chooseSubtitle() {
         val p = exo ?: return
-        val tracks = tracksOf(C.TRACK_TYPE_TEXT)
-        if (tracks.isEmpty()) {
-            Toast.makeText(this, "ما في ترجمة بهاد الفيديو", Toast.LENGTH_SHORT).show()
-            return
-        }
+        val tracks = tracksOf(C.TRACK_TYPE_TEXT, includeUnsupported = true)
         val off = p.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)
-        val labels = arrayOf("إيقاف الترجمة") + tracks.map { it.label }
-        val checked = if (off) 0 else (tracks.indexOfFirst { it.selected } + 1).coerceAtLeast(0)
+        val labels = ArrayList<String>()
+        labels += "إيقاف الترجمة"
+        tracks.forEach { labels += it.label }
+        labels += "📂  تحميل ملف ترجمة من الجهاز (srt / vtt / ass)…"
+        val loadIndex = labels.size - 1
+        val checked = if (off || tracks.none { it.selected }) 0 else tracks.indexOfFirst { it.selected } + 1
+        val title = when {
+            tracks.isEmpty() && p.playbackState != Player.STATE_READY -> "الترجمة — لسا عم يحمّل الفيديو، جرّب بعد ثواني"
+            tracks.isEmpty() -> "الترجمة — ما لقيت ترجمة داخل هذا البث"
+            else -> "الترجمة — متوفر ${tracks.size}"
+        }
         AlertDialog.Builder(this)
-            .setTitle("الترجمة")
-            .setSingleChoiceItems(labels, checked) { d, which ->
-                val params = p.trackSelectionParameters.buildUpon()
-                p.trackSelectionParameters = if (which == 0) {
-                    params.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
-                } else {
-                    val t = tracks[which - 1]
-                    params.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                        .setOverrideForType(TrackSelectionOverride(t.group.mediaTrackGroup, t.index))
-                        .build()
-                }
-                showInfo("الترجمة: ${labels[which]}")
+            .setTitle(title)
+            .setSingleChoiceItems(labels.toTypedArray(), checked) { d, which ->
                 d.dismiss()
+                when {
+                    which == loadIndex -> try {
+                        pickSubtitle.launch(arrayOf("*/*"))
+                    } catch (e: Exception) {
+                        Toast.makeText(this, "ما في مدير ملفات على هذا الجهاز", Toast.LENGTH_LONG).show()
+                    }
+                    which == 0 -> {
+                        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
+                        showInfo("الترجمة: إيقاف")
+                    }
+                    else -> {
+                        val t = tracks[which - 1]
+                        if (!t.supported) {
+                            Toast.makeText(this, "هاي الترجمة بصيغة ما بيدعمها المشغّل. جرّب ملف ترجمة من الجهاز", Toast.LENGTH_LONG).show()
+                            return@setSingleChoiceItems
+                        }
+                        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                            .setOverrideForType(TrackSelectionOverride(t.group.mediaTrackGroup, t.index))
+                            .build()
+                        showInfo("الترجمة: ${t.label}")
+                    }
+                }
             }
             .show()
+    }
+
+    /** Adds a subtitle file from the device and reloads the video at the same spot. */
+    private fun addSubtitleFile(uri: android.net.Uri) {
+        val p = exo ?: return
+        var name = "ترجمة"
+        runCatching {
+            contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                if (c.moveToFirst()) name = c.getString(0) ?: name
+            }
+        }
+        val mime = when (name.substringAfterLast('.', "").lowercase()) {
+            "vtt" -> MimeTypes.TEXT_VTT
+            "ass", "ssa" -> MimeTypes.TEXT_SSA
+            "ttml", "dfxp", "xml" -> MimeTypes.APPLICATION_TTML
+            else -> MimeTypes.APPLICATION_SUBRIP
+        }
+        extraSubs += MediaItem.SubtitleConfiguration.Builder(uri)
+            .setMimeType(mime)
+            .setLanguage("ar")
+            .setLabel(name)
+            .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+            .build()
+        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+            .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+            .build()
+        startAttempt(if (isLive()) C.TIME_UNSET else p.currentPosition)
+        showInfo("انضافت الترجمة: $name")
     }
 
     private fun chooseAudio() {
@@ -608,20 +691,42 @@ class PlayerActivity : AppCompatActivity() {
     private fun chooseResize() {
         AlertDialog.Builder(this)
             .setTitle("حجم الشاشة")
-            .setSingleChoiceItems(RESIZE_NAMES, store.resizeIndex) { d, which ->
+            .setSingleChoiceItems(ASPECTS.map { it.name }.toTypedArray(), store.resizeIndex.coerceIn(0, ASPECTS.size - 1)) { d, which ->
                 store.resizeIndex = which
-                b.playerView.resizeMode = RESIZE_MODES[which]
-                showInfo("حجم الشاشة: ${RESIZE_NAMES[which]}")
+                applyAspect(announce = true)
                 d.dismiss()
             }
             .show()
     }
 
     private fun cycleResize() {
-        val next = (store.resizeIndex + 1) % RESIZE_MODES.size
-        store.resizeIndex = next
-        b.playerView.resizeMode = RESIZE_MODES[next]
-        showInfo("حجم الشاشة: ${RESIZE_NAMES[next]}")
+        store.resizeIndex = (store.resizeIndex.coerceIn(0, ASPECTS.size - 1) + 1) % ASPECTS.size
+        applyAspect(announce = true)
+    }
+
+    /** Applies the chosen screen size; forced ratios are re-applied after the player sets its own. */
+    private fun applyAspect(announce: Boolean = false) {
+        val a = ASPECTS[store.resizeIndex.coerceIn(0, ASPECTS.size - 1)]
+        b.playerView.resizeMode = a.resize
+        val frame = b.playerView.findViewById<AspectRatioFrameLayout>(androidx.media3.ui.R.id.exo_content_frame)
+        if (frame != null) {
+            val ratio = if (a.ratio > 0) a.ratio else exo?.videoSize?.let { v ->
+                if (v.height > 0) v.width * v.pixelWidthHeightRatio / v.height else 0f
+            } ?: 0f
+            if (ratio > 0) frame.post { frame.setAspectRatio(ratio) }
+        }
+        if (announce) showInfo("حجم الشاشة: ${a.name}")
+    }
+
+    private fun chooseOrientation() {
+        AlertDialog.Builder(this)
+            .setTitle("اتجاه الشاشة")
+            .setSingleChoiceItems(ORIENTATIONS.map { it.first }.toTypedArray(), store.orientation.coerceIn(0, ORIENTATIONS.size - 1)) { d, which ->
+                store.orientation = which
+                requestedOrientation = ORIENTATIONS[which].second
+                d.dismiss()
+            }
+            .show()
     }
 
     private fun chooseSubSize() {
