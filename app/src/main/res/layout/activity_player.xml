@@ -58,6 +58,16 @@
                 android:visibility="gone" />
         </LinearLayout>
 
+        <androidx.mediarouter.app.MediaRouteButton
+            android:id="@+id/btnCast"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_icon_btn"
+            android:contentDescription="عرض على التلفزيون"
+            android:visibility="gone"
+            app:mediaRouteButtonTint="#FFFFFF" />
+
         <Button
             android:id="@+id/btnSubs"
             style="@style/Pill"
@@ -96,6 +106,23 @@
             android:layout_marginStart="8dp"
             android:text="المزيد" />
     </LinearLayout>
+
+    <!-- Shown while the video plays on a Chromecast -->
+    <TextView
+        android:id="@+id/castOverlay"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_margin="32dp"
+        android:background="@drawable/bg_overlay"
+        android:drawablePadding="12dp"
+        android:gravity="center"
+        android:lineSpacingExtra="4dp"
+        android:padding="22dp"
+        android:textColor="#FFFFFF"
+        android:textSize="17sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
 
     <!-- Series: episodes strip above the controls -->
     <LinearLayout

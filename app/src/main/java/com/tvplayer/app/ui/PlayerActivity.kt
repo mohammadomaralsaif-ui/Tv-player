@@ -161,6 +161,11 @@ class PlayerActivity : AppCompatActivity() {
         else if (n != null) showInfo("ما في قناة رقم $n")
     }
     private var exo: ExoPlayer? = null
+
+    // ---------- Chromecast ----------
+    private var castPlayer: androidx.media3.cast.CastPlayer? = null
+    /** True while the video plays on a Chromecast instead of this device. */
+    private var casting = false
     private val handler = Handler(Looper.getMainLooper())
 
     private var items: List<Channel> = emptyList()
@@ -252,6 +257,7 @@ class PlayerActivity : AppCompatActivity() {
         b.btnSubs.setOnClickListener { chooseSubtitle() }
         b.btnQuality.setOnClickListener { chooseQuality() }
         applySubtitleStyle()
+        setupCast()
 
         b.btnBack.setOnClickListener { finish() }
         b.btnSettings.setOnClickListener { showSettings() }
@@ -343,8 +349,15 @@ class PlayerActivity : AppCompatActivity() {
         player.addListener(listener)
         player.playWhenReady = true
         exo = player
-        b.playerView.player = if (items.size > 1) zappingPlayer(player) else player
-        startItem(index, resumePosition)
+        if (casting && castPlayer != null) {
+            // Came back to the app while casting: keep controlling the TV.
+            b.playerView.player = castPlayer
+            b.castOverlay.visibility = View.VISIBLE
+            updateTitles()
+        } else {
+            b.playerView.player = if (items.size > 1) zappingPlayer(player) else player
+            startItem(index, resumePosition)
+        }
         handler.postDelayed(saveRunnable, SAVE_EVERY_MS)
     }
 
@@ -418,6 +431,10 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun startAttempt(position: Long = C.TIME_UNSET) {
+        if (casting) {
+            castLoad(items[index], if (position > 0) position else 0L)
+            return
+        }
         val player = exo ?: return
         if (attempts.isEmpty()) { showError("الرابط فاضي"); return }
         val (url, mime) = attempts[attempt]
@@ -536,7 +553,7 @@ class PlayerActivity : AppCompatActivity() {
     // ---------- continue watching ----------
 
     private fun saveProgress(finished: Boolean = false) {
-        val p = exo ?: return
+        val p: Player = (if (casting) castPlayer else exo) ?: return
         val pid = profileId ?: return
         val item = items.getOrNull(index) ?: return
         if (item.kind == ItemKind.LIVE) return
@@ -572,6 +589,115 @@ class PlayerActivity : AppCompatActivity() {
     private fun closeList() {
         b.listPanel.visibility = View.GONE
         b.playerView.requestFocus()
+    }
+
+    // ---------- Chromecast ----------
+
+    private fun setupCast() {
+        if (Device.isTv(this)) return // TV boxes play on their own screen
+        val ctx = try {
+            com.google.android.gms.cast.framework.CastContext.getSharedInstance(applicationContext)
+        } catch (e: Exception) {
+            null // no Google Play services on this device
+        } ?: return
+        try {
+            com.google.android.gms.cast.framework.CastButtonFactory.setUpMediaRouteButton(applicationContext, b.btnCast)
+            b.btnCast.visibility = View.VISIBLE
+            castPlayer = androidx.media3.cast.CastPlayer(ctx).apply {
+                setSessionAvailabilityListener(object : androidx.media3.cast.SessionAvailabilityListener {
+                    override fun onCastSessionAvailable() = startCasting()
+                    override fun onCastSessionUnavailable() = stopCasting()
+                })
+            }
+            if (castPlayer?.isCastSessionAvailable == true) handler.post { startCasting() }
+        } catch (e: Exception) {
+            b.btnCast.visibility = View.GONE
+            castPlayer = null
+        }
+    }
+
+    private fun castDeviceName(): String = try {
+        com.google.android.gms.cast.framework.CastContext.getSharedInstance(applicationContext)
+            .sessionManager.currentCastSession?.castDevice?.friendlyName
+    } catch (e: Exception) {
+        null
+    } ?: "التلفزيون"
+
+    /** Moves playback from this device to the Chromecast, at the same spot. */
+    private fun startCasting() {
+        val cp = castPlayer ?: return
+        val item = items.getOrNull(index) ?: return
+        val pos = if (isLive()) 0L else (exo?.currentPosition ?: 0L)
+        casting = true
+        exo?.pause()
+        b.playerView.player = cp
+        b.castOverlay.text = "يتم العرض على ${castDeviceName()}"
+        b.castOverlay.visibility = View.VISIBLE
+        castLoad(item, pos)
+        b.playerView.showController()
+    }
+
+    /** Back from the Chromecast to this device, at the same spot. */
+    private fun stopCasting() {
+        if (!casting) return
+        val pos = castPlayer?.currentPosition ?: 0L
+        casting = false
+        b.castOverlay.visibility = View.GONE
+        val e = exo ?: return
+        b.playerView.player = if (items.size > 1) zappingPlayer(e) else e
+        if (!isLive() && pos > 0) e.seekTo(pos)
+        e.playWhenReady = true
+        showInfo("رجع العرض على هذا الجهاز")
+    }
+
+    /** The Chromecast plays HLS best, so prefer the .m3u8 link when there is one. */
+    private fun castUrl(item: Channel): String {
+        val links = listOfNotNull(item.url, item.fallbackUrl).filter { it.isNotBlank() }.map { Http.fixUrl(it) }
+        return links.firstOrNull { it.contains("m3u8", ignoreCase = true) } ?: links.firstOrNull() ?: item.url
+    }
+
+    private fun castMime(url: String, item: Channel): String {
+        val path = url.lowercase().substringBefore('?')
+        return when {
+            path.contains(".m3u8") -> MimeTypes.APPLICATION_M3U8
+            path.endsWith(".mpd") -> MimeTypes.APPLICATION_MPD
+            path.endsWith(".mkv") -> MimeTypes.VIDEO_MATROSKA
+            path.endsWith(".ts") -> MimeTypes.VIDEO_MP2T
+            path.endsWith(".webm") -> MimeTypes.VIDEO_WEBM
+            path.endsWith(".mp4") || path.endsWith(".m4v") -> MimeTypes.VIDEO_MP4
+            item.kind == ItemKind.LIVE -> MimeTypes.APPLICATION_M3U8
+            else -> MimeTypes.VIDEO_MP4
+        }
+    }
+
+    private fun castLoad(item: Channel, position: Long) {
+        val cp = castPlayer ?: return
+        val url = castUrl(item)
+        val meta = MediaMetadata.Builder()
+            .setTitle(item.seriesName ?: item.name)
+            .apply { if (item.seriesName != null) setSubtitle(item.name) }
+            .apply { item.logo?.takeIf { it.isNotBlank() }?.let { setArtworkUri(android.net.Uri.parse(it)) } }
+            .build()
+        val mediaItem = MediaItem.Builder()
+            .setUri(url)
+            .setMimeType(castMime(url, item))
+            .setMediaMetadata(meta)
+            .build()
+        try {
+            cp.setMediaItem(mediaItem, position)
+            cp.prepare()
+            cp.playWhenReady = true
+            b.castOverlay.text = "يتم العرض على ${castDeviceName()}\n${item.seriesName ?: item.name}"
+        } catch (e: Exception) {
+            showInfo("ما قدرت أرسل هذا البث للتلفزيون")
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        castPlayer?.setSessionAvailabilityListener(null)
+        castPlayer?.release()
+        castPlayer = null
     }
 
     // ---------- settings ----------
