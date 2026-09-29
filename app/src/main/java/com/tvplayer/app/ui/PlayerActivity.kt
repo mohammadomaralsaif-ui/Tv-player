@@ -101,6 +101,21 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun showsEpisodes() = items.size > 1 && items.getOrNull(index)?.kind == ItemKind.EPISODE
 
+    /** Episodes strip is open (only after the viewer asked for it). */
+    private var stripOpen = false
+
+    /** Series: toggle the episodes strip over the controls. Channels: the side list. */
+    private fun openEpisodesOrList() {
+        if (!showsEpisodes()) { openList(); return }
+        stripOpen = !stripOpen
+        b.episodesBar.visibility = if (stripOpen) View.VISIBLE else View.GONE
+        b.playerView.showController()
+        if (stripOpen) {
+            b.episodesStrip.scrollToPosition(index)
+            b.episodesStrip.post { b.episodesStrip.findViewHolderForAdapterPosition(index)?.itemView?.requestFocus() }
+        }
+    }
+
     /** Current values on the top-bar buttons: subtitles and quality. */
     private fun updateChips() {
         val narrow = Device.isNarrow(this)
@@ -248,9 +263,11 @@ class PlayerActivity : AppCompatActivity() {
                 if (!b.listPanel.isVisible) {
                     b.topBar.visibility = v
                     if (v == View.VISIBLE) updateChips()
-                    val showStrip = v == View.VISIBLE && showsEpisodes()
-                    b.episodesBar.visibility = if (showStrip) View.VISIBLE else View.GONE
-                    if (showStrip) b.episodesStrip.scrollToPosition(index)
+                    // The episodes strip only shows when asked for (☰ الحلقات), never on its own.
+                    if (v != View.VISIBLE) {
+                        stripOpen = false
+                        b.episodesBar.visibility = View.GONE
+                    }
                 }
             }
         )
@@ -263,7 +280,7 @@ class PlayerActivity : AppCompatActivity() {
         b.btnSettings.setOnClickListener { showSettings() }
         b.btnList.isVisible = items.size > 1
         b.btnList.text = if (items.first().kind == ItemKind.LIVE) "☰ القنوات" else "☰ الحلقات"
-        b.btnList.setOnClickListener { openList() }
+        b.btnList.setOnClickListener { openEpisodesOrList() }
 
         listAdapter = ChannelAdapter(
             onClick = { _, pos -> closeList(); if (pos != index) startItem(pos, PlayerQueue.RESUME) },
@@ -293,6 +310,7 @@ class PlayerActivity : AppCompatActivity() {
             override fun handleOnBackPressed() {
                 when {
                     b.listPanel.isVisible -> closeList()
+                    stripOpen -> { stripOpen = false; b.episodesBar.visibility = View.GONE }
                     b.playerView.isControllerFullyVisible -> b.playerView.hideController()
                     else -> finish()
                 }
@@ -765,7 +783,7 @@ class PlayerActivity : AppCompatActivity() {
         }
         if (items.size > 1) {
             labels += if (isLive()) "☰  قائمة القنوات" else "☰  قائمة الحلقات"
-            actions += ::openList
+            actions += ::openEpisodesOrList
         }
         AlertDialog.Builder(this)
             .setTitle("الإعدادات")
@@ -1042,7 +1060,7 @@ class PlayerActivity : AppCompatActivity() {
                 KeyEvent.KEYCODE_DPAD_UP -> if (!controllerShown && isLive()) { zap(-1); return true }
                 KeyEvent.KEYCODE_DPAD_DOWN -> if (!controllerShown && isLive()) { zap(1); return true }
                 KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> { showSettings(); return true }
-                KeyEvent.KEYCODE_GUIDE -> { openList(); return true }
+                KeyEvent.KEYCODE_GUIDE -> { openEpisodesOrList(); return true }
                 KeyEvent.KEYCODE_ZOOM_IN, KeyEvent.KEYCODE_TV_ZOOM_MODE -> { cycleResize(); return true }
                 KeyEvent.KEYCODE_CAPTIONS -> { chooseSubtitle(); return true }
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> if (!controllerShown) {
