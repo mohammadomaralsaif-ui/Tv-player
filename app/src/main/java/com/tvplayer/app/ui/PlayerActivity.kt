@@ -812,7 +812,17 @@ class PlayerActivity : AppCompatActivity() {
                 out += TrackOpt(label, g, i, g.isTrackSelected(i), ok)
             }
         }
-        return if (type == C.TRACK_TYPE_VIDEO) out.sortedByDescending { it.group.getTrackFormat(it.index).height } else out
+        if (type == C.TRACK_TYPE_VIDEO) return out.sortedByDescending { it.group.getTrackFormat(it.index).height }
+        val counts = out.groupingBy { it.label }.eachCount()
+        val seen = HashMap<String, Int>()
+        return out.map { t ->
+            if ((counts[t.label] ?: 0) < 2) t
+            else t.copy(label = t.label.replace(Regex("^([^⚠(]+?)(\\s*)(\\(|  ⚠|$)")) { m ->
+                val k = (seen[t.label] ?: 0) + 1
+                seen[t.label] = k
+                "${m.groupValues[1]} $k${m.groupValues[2]}${m.groupValues[3]}"
+            })
+        }
     }
 
     private fun languageName(code: String?): String? {
@@ -820,16 +830,28 @@ class PlayerActivity : AppCompatActivity() {
         return Locale(code).getDisplayLanguage(Locale("ar")).ifBlank { code }
     }
 
-    private fun trackLabel(f: Format, type: Int, n: Int): String = when (type) {
-        C.TRACK_TYPE_VIDEO -> buildString {
+    /** Short, readable track name: "العربية", "الإنجليزية (للصم)", "1080p (4.2 Mbps)". */
+    private fun trackLabel(f: Format, type: Int, n: Int): String {
+        if (type == C.TRACK_TYPE_VIDEO) return buildString {
             append(if (f.height > 0) "${f.height}p" else "جودة $n")
             if (f.bitrate > 0) append("  (${String.format(Locale.US, "%.1f", f.bitrate / 1_000_000f)} Mbps)")
         }
-        C.TRACK_TYPE_AUDIO -> listOfNotNull(
-            f.label, languageName(f.language),
-            when (f.channelCount) { 1 -> "Mono"; 2 -> "Stereo"; 6 -> "5.1"; 8 -> "7.1"; else -> null },
-        ).distinct().joinToString(" • ").ifBlank { "صوت $n" }
-        else -> listOfNotNull(f.label, languageName(f.language)).distinct().joinToString(" • ").ifBlank { "ترجمة $n" }
+        val lang = languageName(f.language)
+        val english = f.language?.takeIf { it.isNotBlank() && it != "und" }?.let { Locale(it).getDisplayLanguage(Locale.ENGLISH) }
+        // The server's own label, unless it just repeats the language.
+        val own = f.label?.trim()?.takeIf { l ->
+            l.isNotEmpty() && !l.equals(english, true) && !l.equals(lang, true) && !l.equals(f.language, true)
+        }
+        val base = listOfNotNull(lang, own).joinToString(" • ").ifBlank { if (type == C.TRACK_TYPE_AUDIO) "صوت $n" else "ترجمة $n" }
+        val extras = ArrayList<String>()
+        if (type == C.TRACK_TYPE_TEXT) {
+            if (f.selectionFlags and C.SELECTION_FLAG_FORCED != 0) extras += "إجبارية"
+            if (f.roleFlags and (C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND or C.ROLE_FLAG_TRANSCRIBES_DIALOG) != 0) extras += "للصم"
+        } else {
+            when (f.channelCount) { 1 -> "Mono"; 6 -> "5.1"; 8 -> "7.1"; else -> null }?.let { extras += it }
+            if (f.roleFlags and C.ROLE_FLAG_DESCRIBES_VIDEO != 0) extras += "وصف صوتي"
+        }
+        return if (extras.isEmpty()) base else "$base (${extras.joinToString("، ")})"
     }
 
     // ---------- side panel (settings, subtitles & audio, screen size…) ----------
