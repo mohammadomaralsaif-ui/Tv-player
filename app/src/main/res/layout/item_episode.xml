@@ -22,6 +22,21 @@
             android:background="@drawable/bg_poster"
             android:contentDescription="@null"
             android:scaleType="centerCrop" />
+        <TextView
+            android:id="@+id/fallback"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:ellipsize="end"
+            android:gravity="center"
+            android:maxLines="3"
+            android:padding="10dp"
+            android:shadowColor="#80000000"
+            android:shadowRadius="6"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
 
         <ProgressBar
             android:id="@+id/progress"
@@ -44,6 +59,7 @@
 
         <TextView
             android:id="@+id/name"
+        android:textAlignment="viewStart"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:ellipsize="end"
@@ -54,6 +70,7 @@
 
         <TextView
             android:id="@+id/sub"
+        android:textAlignment="viewStart"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"

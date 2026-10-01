@@ -168,6 +168,7 @@ class ChannelAdapter(
         val number: TextView? = v.findViewById(R.id.number)
         val badge: TextView? = v.findViewById(R.id.badge)
         val extra: TextView? = v.findViewById(R.id.extra)
+        val fallback: TextView? = v.findViewById(R.id.fallback)
     }
 
     override fun getItemViewType(position: Int) = when {
@@ -239,13 +240,27 @@ class ChannelAdapter(
         h.progress.visibility = if (pct != null && pct > 0) View.VISIBLE else View.GONE
         h.progress.progress = pct ?: 0
 
-        if (c.logo.isNullOrBlank()) {
+        val fb = h.fallback
+        if (fb == null) {
+            // Channel rows: small logo, the TV icon is fine.
+            if (c.logo.isNullOrBlank()) {
+                h.logo.dispose()
+                h.logo.setImageResource(R.drawable.ic_tv)
+            } else {
+                h.logo.load(c.logo) {
+                    placeholder(R.drawable.ic_tv)
+                    error(R.drawable.ic_tv)
+                }
+            }
+        } else if (c.logo.isNullOrBlank()) {
+            // No picture from the server: a colored card with the title instead of an empty box.
             h.logo.dispose()
-            h.logo.setImageResource(R.drawable.ic_tv)
+            h.logo.setImageDrawable(null)
+            Artwork.showFallback(fb, c)
         } else {
+            fb.visibility = View.GONE
             h.logo.load(c.logo) {
-                placeholder(R.drawable.ic_tv)
-                error(R.drawable.ic_tv)
+                listener(onError = { _, _ -> Artwork.showFallback(fb, c) })
             }
         }
         h.itemView.setOnClickListener {
@@ -410,5 +425,37 @@ class HomeAdapter(
         rows[position].landscape -> 3
         rows[position].tiles -> 1
         else -> 0
+    }
+}
+
+
+/** Stand-in artwork for items whose picture is missing or broken. */
+object Artwork {
+    private val palettes = arrayOf(
+        intArrayOf(0xFF2B3A67.toInt(), 0xFF6E5BFF.toInt()),
+        intArrayOf(0xFF0F4C5C.toInt(), 0xFF3D8BFF.toInt()),
+        intArrayOf(0xFF5B2245.toInt(), 0xFFE0567A.toInt()),
+        intArrayOf(0xFF3B2F12.toInt(), 0xFFD9A43A.toInt()),
+        intArrayOf(0xFF153B2E.toInt(), 0xFF2FB384.toInt()),
+        intArrayOf(0xFF3A1F5C.toInt(), 0xFFA45BFF.toInt()),
+    )
+    private val episodeNo = Regex("""(?i)(?:\bE|\bEp\.?\s*|حلقة\s*|الحلقة\s*)(\d{1,4})""")
+
+    fun label(c: Channel): String {
+        if (c.kind == ItemKind.EPISODE) {
+            episodeNo.find(c.name)?.let { return "الحلقة ${it.groupValues[1].trimStart('0').ifEmpty { "0" }}" }
+        }
+        return c.name.trim().take(40)
+    }
+
+    fun showFallback(v: TextView, c: Channel) {
+        val colors = palettes[(c.seriesName ?: c.name).hashCode().mod(palettes.size)]
+        val d = android.graphics.drawable.GradientDrawable(
+            android.graphics.drawable.GradientDrawable.Orientation.TL_BR, colors,
+        )
+        d.cornerRadius = 12 * v.resources.displayMetrics.density
+        v.background = d
+        v.text = label(c)
+        v.visibility = View.VISIBLE
     }
 }

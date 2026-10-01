@@ -16,8 +16,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Plays a small "series", opens the episodes strip and taps another episode —
- * the same steps a viewer does — taking a screenshot after each step.
+ * Walks through the player like a viewer: controls, subtitles & audio, settings,
+ * episodes, switching episode and the up-next card — a screenshot after each step.
  * Screenshots land in /data/local/tmp/shots for the CI job to collect.
  */
 @RunWith(AndroidJUnit4::class)
@@ -33,56 +33,93 @@ class EpisodesUiTest {
 
     private fun log(msg: String) = android.util.Log.i("UITEST", msg)
 
-    @Test
-    fun openEpisodesAndSwitch() {
-        val base = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/"
-        val names = listOf("ForBiggerBlazes", "ForBiggerEscapes", "ForBiggerFun", "ForBiggerJoyrides", "ForBiggerMeltdowns")
-        val eps = names.mapIndexed { i, n ->
-            Channel(
-                id = "e$i", name = "S1 E${i + 1} • $n", logo = null, group = "1",
-                url = "$base$n.mp4", kind = ItemKind.EPISODE,
-                seriesId = "s1", seriesName = "مسلسل تجريبي", duration = "1 د",
-            )
-        }
-        val profile = ServerProfile(id = "uitest", name = "test", type = ServerType.M3U, url = "http://localhost")
-        PlayerQueue.set(eps, 0, profile, 0)
+    private fun tapCenter() {
+        device.click(device.displayWidth / 2, device.displayHeight / 3)
+        Thread.sleep(1_200)
+    }
 
-        val intent = Intent(inst.targetContext, PlayerActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    private fun clickRes(id: String): Boolean {
+        val o = device.wait(Until.findObject(By.res(pkg, id)), 4_000)
+        log("$id found=${o != null}")
+        o?.click()
+        Thread.sleep(1_500)
+        return o != null
+    }
+
+    private fun showControls() {
+        if (device.findObject(By.res(pkg, "btnList")) == null) tapCenter()
+    }
+
+    private fun start(eps: List<Channel>, index: Int, position: Long) {
+        val profile = ServerProfile(id = "uitest", name = "test", type = ServerType.M3U, url = "http://localhost")
+        PlayerQueue.set(eps, index, profile, position)
+        val intent = Intent(inst.targetContext, PlayerActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         inst.targetContext.startActivity(intent)
         device.wait(Until.hasObject(By.res(pkg, "playerView")), 10_000)
-        Thread.sleep(8_000)
-        shot("1_playing")
+    }
 
-        // Tap the video to show the controls.
-        device.click(device.displayWidth / 2, device.displayHeight / 2)
-        Thread.sleep(1_500)
-        shot("2_controls")
+    @Test
+    fun openEpisodesAndSwitch() {
+        // Public test streams: the first has subtitles, several audio tracks and qualities.
+        val streams = listOf(
+            "Apple BipBop" to "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8",
+            "Big Buck Bunny" to "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+            "Tears of Steel" to "https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8",
+            "Sintel" to "https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8",
+        )
+        val eps = streams.mapIndexed { i, (n, url) ->
+            Channel(
+                id = "e$i", name = "S1 E${i + 1} • $n", logo = if (i == 0) "https://example.invalid/broken.jpg" else null,
+                group = "1", url = url, kind = ItemKind.EPISODE,
+                seriesId = "s1", seriesName = "مسلسل تجريبي", duration = "10 د",
+            )
+        }
 
-        // Open the episodes strip.
-        val listBtn = device.wait(Until.findObject(By.res(pkg, "btnList")), 5_000)
-        log("btnList found=${listBtn != null}")
-        listBtn?.click()
-        Thread.sleep(1_500)
-        shot("3_episodes_open")
+        start(eps, 0, 0)
+        Thread.sleep(12_000)
+        shot("01_playing")
 
-        // Tap the 3rd episode in the strip.
+        tapCenter()
+        shot("02_controls")
+
+        clickRes("btnSubs")
+        shot("03_subs_audio_panel")
+        device.pressBack()
+        Thread.sleep(800)
+
+        showControls()
+        clickRes("btnSettings")
+        shot("04_settings_panel")
+        device.findObject(By.text("الجودة"))?.click()
+        Thread.sleep(1_200)
+        shot("05_quality_page")
+        device.pressBack()
+        Thread.sleep(600)
+        device.pressBack()
+        Thread.sleep(800)
+
+        showControls()
+        clickRes("btnAspect")
+        shot("06_aspect_panel")
+        device.pressBack()
+        Thread.sleep(800)
+
+        showControls()
+        clickRes("btnList")
+        shot("07_episodes")
         val strip = device.findObject(By.res(pkg, "episodesStrip"))
-        log("strip found=${strip != null} children=${strip?.childCount}")
-        strip?.children?.getOrNull(2)?.click() ?: strip?.children?.lastOrNull()?.click()
-        Thread.sleep(2_000)
-        shot("4_after_tap")
-        Thread.sleep(6_000)
-        shot("5_playing_new")
+        log("strip children=${strip?.childCount}")
+        strip?.children?.getOrNull(1)?.click()
+        Thread.sleep(10_000)
+        shot("08_episode2_playing")
+        tapCenter()
+        shot("09_episode2_controls")
 
-        // Open the strip again and tap the next one, then wait.
-        device.click(device.displayWidth / 2, device.displayHeight / 2)
-        Thread.sleep(1_200)
-        device.findObject(By.res(pkg, "btnList"))?.click()
-        Thread.sleep(1_200)
-        shot("6_strip_again")
-        device.findObject(By.res(pkg, "episodesStrip"))?.children?.getOrNull(1)?.click()
-        Thread.sleep(6_000)
-        shot("7_final")
+        // Last seconds of episode 2 (Big Buck Bunny is ~10 min): the up-next card.
+        start(eps, 1, 612_000)
+        Thread.sleep(14_000)
+        shot("10_up_next")
         log("app still in front=${device.currentPackageName == pkg}")
     }
 }

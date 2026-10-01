@@ -10,7 +10,6 @@ import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.annotation.OptIn
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -40,6 +39,7 @@ import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.SubtitleView
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.tvplayer.app.R
 import com.tvplayer.app.data.Channel
 import com.tvplayer.app.data.Http
 import com.tvplayer.app.data.ItemKind
@@ -66,6 +66,8 @@ class PlayerActivity : AppCompatActivity() {
     private companion object {
         const val MAX_RETRIES = 4
         const val SAVE_EVERY_MS = 10_000L
+        /** Up-next card appears this long before an episode ends. */
+        const val UP_NEXT_MS = 15_000L
         val PROGRESSIVE_EXT = listOf(".ts", ".mp4", ".mkv", ".avi", ".mov", ".webm", ".m4v", ".mp3", ".aac", ".flv")
         /** Screen size options: how the video fills the screen, optionally forcing an aspect ratio. */
         val ASPECTS = arrayOf(
@@ -112,6 +114,7 @@ class PlayerActivity : AppCompatActivity() {
 
     /** The strip is its own panel: the controls hide while it is open so nothing overlaps. */
     private fun openStrip() {
+        closePanel()
         stripOpen = true
         b.playerView.hideController()
         b.episodesBar.visibility = View.VISIBLE
@@ -129,19 +132,51 @@ class PlayerActivity : AppCompatActivity() {
         if (showControls) b.playerView.showController()
     }
 
-    /** Current values on the top-bar buttons: subtitles and quality. */
-    private fun updateChips() {
-        val narrow = Device.isNarrow(this)
-        val subs = tracksOf(C.TRACK_TYPE_TEXT, includeUnsupported = true)
-        val off = exo?.trackSelectionParameters?.disabledTrackTypes?.contains(C.TRACK_TYPE_TEXT) == true
-        val subNow = when {
-            subs.isEmpty() -> "—"
-            off -> "إيقاف"
-            else -> subs.firstOrNull { it.selected }?.label?.substringBefore(" •")?.substringBefore("  ⚠") ?: "إيقاف"
-        }
-        b.btnSubs.text = if (narrow) "CC" else "الترجمة: $subNow"
-        val h = exo?.videoSize?.height ?: 0
-        b.btnQuality.text = if (h > 0) "${h}p" else "الجودة"
+    /** Views inside the custom controller (player_controls.xml). */
+    private class Ctl(root: View) {
+        val title: android.widget.TextView = root.findViewById(R.id.ctlTitle)
+        val subtitle: android.widget.TextView = root.findViewById(R.id.ctlSubtitle)
+        val back: View = root.findViewById(R.id.btnBack)
+        val cast: androidx.mediarouter.app.MediaRouteButton = root.findViewById(R.id.btnCast)
+        val settings: View = root.findViewById(R.id.btnSettings)
+        val list: android.widget.Button = root.findViewById(R.id.btnList)
+        val subs: android.widget.Button = root.findViewById(R.id.btnSubs)
+        val aspect: android.widget.Button = root.findViewById(R.id.btnAspect)
+        val nextEp: android.widget.Button = root.findViewById(R.id.btnNextEp)
+        val live: View = root.findViewById(R.id.ctlLive)
+        val rewWrap: View = root.findViewById(R.id.rewWrap)
+        val ffwdWrap: View = root.findViewById(R.id.ffwdWrap)
+        val position: View = root.findViewById(androidx.media3.ui.R.id.exo_position)
+        val duration: View = root.findViewById(androidx.media3.ui.R.id.exo_duration)
+        val progress: View = root.findViewById(androidx.media3.ui.R.id.exo_progress)
+    }
+    private lateinit var ctl: Ctl
+
+    /** Next episode in the queue, or -1. */
+    private fun nextEpisodeIndex(): Int {
+        val cur = items.getOrNull(index) ?: return -1
+        val next = items.getOrNull(index + 1) ?: return -1
+        return if (cur.kind == ItemKind.EPISODE && next.kind == ItemKind.EPISODE) index + 1 else -1
+    }
+
+    /** Fits the controls to what is playing: live vs. video, series vs. movie. */
+    private fun updateControls() {
+        val live = isLive()
+        ctl.rewWrap.isVisible = !live
+        ctl.ffwdWrap.isVisible = !live
+        ctl.position.isVisible = !live
+        ctl.duration.isVisible = !live
+        ctl.progress.visibility = if (live) View.INVISIBLE else View.VISIBLE
+        ctl.live.isVisible = live
+        b.playerView.setShowPreviousButton(items.size > 1)
+        b.playerView.setShowNextButton(items.size > 1)
+        ctl.list.isVisible = items.size > 1
+        val isLiveList = items.first().kind == ItemKind.LIVE
+        ctl.list.text = if (isLiveList) "القنوات" else "الحلقات"
+        ctl.list.setCompoundDrawablesRelativeWithIntrinsicBounds(
+            if (isLiveList) R.drawable.ic_pl_list else R.drawable.ic_pl_episodes, 0, 0, 0,
+        )
+        ctl.nextEp.isVisible = nextEpisodeIndex() >= 0
     }
 
     /** Title / second line: series + episode, or channel + what's on now. */
@@ -149,20 +184,20 @@ class PlayerActivity : AppCompatActivity() {
         val item = items.getOrNull(index) ?: return
         when {
             item.kind == ItemKind.EPISODE && item.seriesName != null -> {
-                b.title.text = item.seriesName
-                b.subtitle.text = item.name
-                b.subtitle.visibility = View.VISIBLE
+                ctl.title.text = item.seriesName
+                ctl.subtitle.text = item.name
+                ctl.subtitle.visibility = View.VISIBLE
             }
             item.kind == ItemKind.LIVE -> {
-                b.title.text = if (items.size > 1) "${index + 1}   ${item.name}" else item.name
+                ctl.title.text = if (items.size > 1) "${index + 1}   ${item.name}" else item.name
                 val pid = profileId
                 val now = if (pid != null) com.tvplayer.app.data.Epg.now(pid, item.id) else null
-                b.subtitle.text = now?.let { "الآن: ${it.title}  (${it.timeRange()})" }.orEmpty()
-                b.subtitle.visibility = if (now != null) View.VISIBLE else View.GONE
+                ctl.subtitle.text = now?.let { "الآن: ${it.title}  (${it.timeRange()})" }.orEmpty()
+                ctl.subtitle.visibility = if (now != null) View.VISIBLE else View.GONE
             }
             else -> {
-                b.title.text = item.name
-                b.subtitle.visibility = View.GONE
+                ctl.title.text = item.name
+                ctl.subtitle.visibility = View.GONE
             }
         }
     }
@@ -233,6 +268,9 @@ class PlayerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         b = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(b.root)
+        // Arabic interface: right-to-left, whatever the phone's language.
+        window.decorView.layoutDirection = View.LAYOUT_DIRECTION_RTL
+        ctl = Ctl(b.playerView)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         hideSystemUi()
         store = ProfileStore(this)
@@ -251,6 +289,7 @@ class PlayerActivity : AppCompatActivity() {
         b.playerView.controllerShowTimeoutMs = 4000
         b.playerView.setShowRewindButton(true)
         b.playerView.setShowFastForwardButton(true)
+        b.playerView.setShowSubtitleButton(false)
         if (!Device.isTv(this)) {
             // Touch gestures: volume, brightness, seeking, double-tap ±10s.
             b.playerView.setOnTouchListener(
@@ -262,6 +301,7 @@ class PlayerActivity : AppCompatActivity() {
                     level = { volume, pct -> showLevel(volume, pct) },
                     toggleControls = {
                         if (b.listPanel.isVisible) closeList()
+                        else if (panelOpen) closePanel()
                         else if (stripOpen) closeStrip()
                         else if (b.playerView.isControllerFullyVisible) b.playerView.hideController()
                         else b.playerView.showController()
@@ -271,27 +311,33 @@ class PlayerActivity : AppCompatActivity() {
         }
         applyAspect()
         if (!Device.isTv(this)) requestedOrientation = ORIENTATIONS[store.orientation.coerceIn(0, ORIENTATIONS.size - 1)].second
-        b.btnAspect.setOnClickListener { cycleResize() }
+        ctl.aspect.setOnClickListener { aspectPage() }
         b.playerView.setControllerVisibilityListener(
             PlayerView.ControllerVisibilityListener { v ->
                 if (!b.listPanel.isVisible) {
-                    b.topBar.visibility = v
-                    if (v == View.VISIBLE) updateChips()
+                    if (v == View.VISIBLE) updateControls()
                     // Controls and the episodes strip never share the screen.
                     if (v == View.VISIBLE && stripOpen) closeStrip()
                 }
             }
         )
-        b.btnSubs.setOnClickListener { chooseSubtitle() }
-        b.btnQuality.setOnClickListener { chooseQuality() }
+        ctl.subs.setOnClickListener { subtitlePage() }
+        ctl.nextEp.setOnClickListener { playNextEpisode() }
+        b.nextPlay.setOnClickListener { playNextEpisode() }
+        b.nextCancel.setOnClickListener {
+            nextCancelledFor = index
+            b.nextCard.visibility = View.GONE
+        }
+        b.panelScrim.setOnClickListener { closePanel() }
+        b.panelClose.setOnClickListener { closePanel() }
+        b.panelBack.setOnClickListener { panelBackAction?.invoke() ?: closePanel() }
         applySubtitleStyle()
         setupCast()
 
-        b.btnBack.setOnClickListener { finish() }
-        b.btnSettings.setOnClickListener { showSettings() }
-        b.btnList.isVisible = items.size > 1
-        b.btnList.text = if (items.first().kind == ItemKind.LIVE) "☰ القنوات" else "☰ الحلقات"
-        b.btnList.setOnClickListener { openEpisodesOrList() }
+        ctl.back.setOnClickListener { finish() }
+        ctl.settings.setOnClickListener { showSettings() }
+        ctl.list.setOnClickListener { openEpisodesOrList() }
+        updateControls()
         b.btnCloseEpisodes.setOnClickListener { closeStrip(showControls = true) }
 
         listAdapter = ChannelAdapter(
@@ -324,6 +370,7 @@ class PlayerActivity : AppCompatActivity() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 when {
+                    panelOpen -> panelBackAction?.invoke() ?: closePanel()
                     b.listPanel.isVisible -> closeList()
                     stripOpen -> closeStrip()
                     b.playerView.isControllerFullyVisible -> b.playerView.hideController()
@@ -392,6 +439,7 @@ class PlayerActivity : AppCompatActivity() {
             startItem(index, resumePosition)
         }
         handler.postDelayed(saveRunnable, SAVE_EVERY_MS)
+        handler.post(upNextTick)
     }
 
     private fun releasePlayer() {
@@ -427,9 +475,9 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun isLive() = items.getOrNull(index)?.kind == ItemKind.LIVE
 
-    private fun startItem(i: Int, position: Long) {
+    private fun startItem(i: Int, position: Long, finishedPrevious: Boolean = false) {
         if (i != index) extraSubs.clear() // loaded subtitle files belong to one video
-        saveProgress() // remember where we were in the previous item
+        saveProgress(finished = finishedPrevious) // remember where we were in the previous item
         index = i
         playToken++
         val item = items[i]
@@ -437,7 +485,11 @@ class PlayerActivity : AppCompatActivity() {
         attempt = 0
         retries = 0
         b.error.visibility = View.GONE
+        b.statusPill.visibility = View.GONE
+        b.nextCard.visibility = View.GONE
+        nextCancelledFor = -1
         updateTitles()
+        updateControls()
         loadEpg(item)
         stripAdapter.highlighted = if (item.kind == ItemKind.EPISODE) i else -1
         listAdapter.highlighted = i
@@ -529,6 +581,7 @@ class PlayerActivity : AppCompatActivity() {
                 Player.STATE_READY -> {
                     retries = 0
                     b.error.visibility = View.GONE
+                    b.statusPill.visibility = View.GONE
                 }
                 Player.STATE_ENDED -> onEnded()
                 else -> Unit
@@ -556,11 +609,12 @@ class PlayerActivity : AppCompatActivity() {
         if (retries < MAX_RETRIES) {
             retries++
             attempt = 0
-            showError("انقطع الاتصال… إعادة المحاولة ($retries/$MAX_RETRIES)")
+            showStatus("انقطع الاتصال… إعادة المحاولة ($retries/$MAX_RETRIES)")
             val token = playToken
             handler.postDelayed({ if (token == playToken) startAttempt(pos) }, 1500L * retries)
             return
         }
+        b.statusPill.visibility = View.GONE
         showError("تعذّر تشغيل البث\n${error.errorCodeName}\n\nجرّب قناة ثانية أو غيّر صيغة البث (ts / m3u8) من إعدادات السيرفر")
     }
 
@@ -571,11 +625,11 @@ class PlayerActivity : AppCompatActivity() {
                 retries++
                 startAttempt()
             }
-            item.kind == ItemKind.EPISODE && index + 1 < items.size -> {
+            item.kind == ItemKind.EPISODE && nextEpisodeIndex() >= 0 && nextCancelledFor == index -> {
                 saveProgress(finished = true)
-                showInfo("الحلقة الجاية…")
-                startItem(index + 1, 0)
+                b.playerView.showController()
             }
+            item.kind == ItemKind.EPISODE && nextEpisodeIndex() >= 0 -> playNextEpisode()
             item.kind != ItemKind.LIVE -> {
                 saveProgress(finished = true)
                 finish()
@@ -609,8 +663,8 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun openList() {
         if (items.size < 2) return
+        closePanel()
         b.playerView.hideController()
-        b.topBar.visibility = View.GONE
         b.listTitle.text = if (items.first().kind == ItemKind.LIVE) "القنوات" else "الحلقات"
         listAdapter.submit(items)
         listAdapter.highlighted = index
@@ -634,8 +688,8 @@ class PlayerActivity : AppCompatActivity() {
             null // no Google Play services on this device
         } ?: return
         try {
-            com.google.android.gms.cast.framework.CastButtonFactory.setUpMediaRouteButton(applicationContext, b.btnCast)
-            b.btnCast.visibility = View.VISIBLE
+            com.google.android.gms.cast.framework.CastButtonFactory.setUpMediaRouteButton(applicationContext, ctl.cast)
+            ctl.cast.visibility = View.VISIBLE
             castPlayer = androidx.media3.cast.CastPlayer(ctx).apply {
                 setSessionAvailabilityListener(object : androidx.media3.cast.SessionAvailabilityListener {
                     override fun onCastSessionAvailable() = startCasting()
@@ -644,7 +698,7 @@ class PlayerActivity : AppCompatActivity() {
             }
             if (castPlayer?.isCastSessionAvailable == true) handler.post { startCasting() }
         } catch (e: Exception) {
-            b.btnCast.visibility = View.GONE
+            ctl.cast.visibility = View.GONE
             castPlayer = null
         }
     }
@@ -771,39 +825,113 @@ class PlayerActivity : AppCompatActivity() {
         else -> listOfNotNull(f.label, languageName(f.language)).distinct().joinToString(" • ").ifBlank { "ترجمة $n" }
     }
 
+    // ---------- side panel (settings, subtitles & audio, screen size…) ----------
+
+    private class PanelRow(
+        val label: String,
+        val value: String? = null,
+        /** null = no check column, true/false = selected or not. */
+        val checked: Boolean? = null,
+        val header: Boolean = false,
+        val chevron: Boolean = false,
+        val action: (() -> Unit)? = null,
+    )
+
+    private var panelBackAction: (() -> Unit)? = null
+    private val panelOpen get() = b.settingsPanel.isVisible
+
+    private fun showPanel(title: String, rows: List<PanelRow>, back: (() -> Unit)? = null) {
+        b.playerView.hideController()
+        closeStrip()
+        b.nextCard.visibility = View.GONE
+        val dm = resources.displayMetrics
+        b.settingsPanel.layoutParams = b.settingsPanel.layoutParams.apply {
+            width = minOf((400 * dm.density).toInt(), (dm.widthPixels * 0.88f).toInt())
+        }
+        b.panelTitle.text = title
+        panelBackAction = back
+        b.panelBack.isVisible = back != null
+        b.panelRows.removeAllViews()
+        var first: View? = null
+        var selected: View? = null
+        for (r in rows) {
+            if (r.header) {
+                val t = android.widget.TextView(this).apply {
+                    text = r.label
+                    setTextColor(0xFF8C98AB.toInt())
+                    textSize = 13f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+                    val pad = (12 * dm.density).toInt()
+                    setPadding(pad, (if (b.panelRows.childCount == 0) 4 else 18).let { (it * dm.density).toInt() }, pad, (6 * dm.density).toInt())
+                }
+                b.panelRows.addView(t)
+                continue
+            }
+            val v = layoutInflater.inflate(R.layout.item_panel_row, b.panelRows, false)
+            v.findViewById<android.widget.TextView>(R.id.rowLabel).text = r.label
+            v.findViewById<android.widget.TextView>(R.id.rowValue).apply {
+                text = r.value.orEmpty()
+                isVisible = !r.value.isNullOrBlank()
+            }
+            v.findViewById<View>(R.id.rowCheck).visibility = when (r.checked) {
+                null -> View.GONE
+                true -> View.VISIBLE
+                false -> View.INVISIBLE
+            }
+            v.findViewById<View>(R.id.rowChevron).isVisible = r.chevron
+            if (r.action != null) v.setOnClickListener { r.action.invoke() } else v.isEnabled = false
+            b.panelRows.addView(v)
+            if (first == null && r.action != null) first = v
+            if (r.checked == true && selected == null) selected = v
+        }
+        b.panelScrim.visibility = View.VISIBLE
+        b.settingsPanel.visibility = View.VISIBLE
+        b.panelScroll.scrollTo(0, 0)
+        (selected ?: first)?.let { v -> v.post { v.requestFocus() } }
+    }
+
+    private fun closePanel() {
+        if (!panelOpen) return
+        b.settingsPanel.visibility = View.GONE
+        b.panelScrim.visibility = View.GONE
+        panelBackAction = null
+        b.playerView.requestFocus()
+    }
+
+    /** After choosing an option: back to the page we came from, or close. */
+    private fun done(back: (() -> Unit)?) {
+        if (back != null) back() else closePanel()
+    }
+
+    private fun subtitleSummary(): String {
+        val p = exo ?: return "—"
+        val subs = tracksOf(C.TRACK_TYPE_TEXT, includeUnsupported = true)
+        val off = p.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)
+        return when {
+            subs.isEmpty() -> "غير متوفرة"
+            off -> "إيقاف"
+            else -> subs.firstOrNull { it.selected }?.label?.substringBefore("  ⚠") ?: "إيقاف"
+        }
+    }
+
     private fun showSettings() {
         val p = exo ?: return
-        b.playerView.hideController()
         val height = p.videoSize.height
-        val subs = tracksOf(C.TRACK_TYPE_TEXT, includeUnsupported = true)
-        val textOff = p.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)
-        val subNow = if (textOff) "إيقاف" else subs.firstOrNull { it.selected }?.label ?: if (subs.isEmpty()) "غير متوفرة" else "إيقاف"
         val audioNow = tracksOf(C.TRACK_TYPE_AUDIO).firstOrNull { it.selected }?.label ?: "افتراضي"
-
-        val labels = arrayListOf(
-            "🎞  الجودة: ${if (height > 0) "${height}p الآن" else "—"} • ${QUALITY_NAMES[qualityIndex()]}",
-            "💬  الترجمة: $subNow",
-            "🔊  الصوت: $audioNow",
-            "🖥  حجم الشاشة: ${ASPECTS[store.resizeIndex.coerceIn(0, ASPECTS.size - 1)].name}",
-            "🔠  حجم الترجمة: ${SUB_NAMES[SUB_SCALES.indexOfFirst { it == store.subtitleScale }.coerceAtLeast(1)]}",
+        val rows = arrayListOf(
+            PanelRow("الجودة", "${if (height > 0) "${height}p الآن  •  " else ""}${QUALITY_NAMES[qualityIndex()]}", chevron = true) { qualityPage(::showSettings) },
+            PanelRow("الترجمة والصوت", "${subtitleSummary()}  •  $audioNow", chevron = true) { subtitlePage(::showSettings) },
+            PanelRow("حجم الشاشة", ASPECTS[store.resizeIndex.coerceIn(0, ASPECTS.size - 1)].name, chevron = true) { aspectPage(::showSettings) },
+            PanelRow("حجم الترجمة", SUB_NAMES[SUB_SCALES.indexOfFirst { it == store.subtitleScale }.coerceAtLeast(1)], chevron = true) { subSizePage(::showSettings) },
         )
-        val actions = arrayListOf<() -> Unit>(::chooseQuality, ::chooseSubtitle, ::chooseAudio, ::chooseResize, ::chooseSubSize)
         if (!Device.isTv(this)) {
-            labels += "🔄  اتجاه الشاشة: ${ORIENTATIONS[store.orientation.coerceIn(0, ORIENTATIONS.size - 1)].first}"
-            actions += ::chooseOrientation
+            rows += PanelRow("اتجاه الشاشة", ORIENTATIONS[store.orientation.coerceIn(0, ORIENTATIONS.size - 1)].first, chevron = true) { orientationPage(::showSettings) }
         }
         if (!isLive()) {
-            labels += "⏩  سرعة التشغيل: ${p.playbackParameters.speed}x"
-            actions += ::chooseSpeed
+            rows += PanelRow("سرعة التشغيل", "${p.playbackParameters.speed}x", chevron = true) { speedPage(::showSettings) }
         }
-        if (items.size > 1) {
-            labels += if (isLive()) "☰  قائمة القنوات" else "☰  قائمة الحلقات"
-            actions += ::openEpisodesOrList
-        }
-        AlertDialog.Builder(this)
-            .setTitle("الإعدادات")
-            .setItems(labels.toTypedArray()) { _, which -> actions[which]() }
-            .show()
+        showPanel("الإعدادات", rows)
     }
 
     private fun qualityIndex() = QUALITY_CAPS.indexOf(store.maxQuality).coerceAtLeast(0)
@@ -811,37 +939,100 @@ class PlayerActivity : AppCompatActivity() {
     private fun withQualityCap(builder: androidx.media3.common.TrackSelectionParameters.Builder, cap: Int) =
         if (cap > 0) builder.setMaxVideoSize(Int.MAX_VALUE, cap) else builder.clearVideoSizeConstraints()
 
-    private fun chooseQuality() {
+    private fun qualityPage(back: (() -> Unit)? = null) {
         val p = exo ?: return
         val tracks = tracksOf(C.TRACK_TYPE_VIDEO)
-        val labels = ArrayList<String>()
-        QUALITY_NAMES.forEach { labels += it }
-        tracks.forEach { labels += "▶ بالضبط: ${it.label}" + if (it.selected) "  ✓" else "" }
-        val title = when {
-            tracks.size <= 1 -> {
-                val h = p.videoSize.height
-                "الجودة — السيرفر بيبعت جودة وحدة بس" + if (h > 0) " (${h}p)" else ""
+        val overridden = p.trackSelectionParameters.overrides.keys.any { it.type == C.TRACK_TYPE_VIDEO }
+        val rows = ArrayList<PanelRow>()
+        rows += PanelRow("الحد الأقصى للجودة", header = true)
+        QUALITY_NAMES.forEachIndexed { i, name ->
+            rows += PanelRow(name, checked = !overridden && i == qualityIndex()) {
+                store.maxQuality = QUALITY_CAPS[i]
+                p.trackSelectionParameters = withQualityCap(
+                    p.trackSelectionParameters.buildUpon().clearOverridesOfType(C.TRACK_TYPE_VIDEO), QUALITY_CAPS[i],
+                ).build()
+                showInfo("الجودة: $name")
+                done(back)
             }
-            else -> "الجودة — متوفر ${tracks.size} جودات"
         }
-        AlertDialog.Builder(this)
-            .setTitle(title)
-            .setSingleChoiceItems(labels.toTypedArray(), qualityIndex()) { d, which ->
-                val params = p.trackSelectionParameters.buildUpon().clearOverridesOfType(C.TRACK_TYPE_VIDEO)
-                if (which < QUALITY_CAPS.size) {
-                    store.maxQuality = QUALITY_CAPS[which]
-                    p.trackSelectionParameters = withQualityCap(params, QUALITY_CAPS[which]).build()
-                    showInfo("الجودة: ${QUALITY_NAMES[which]}")
-                } else {
-                    val t = tracks[which - QUALITY_CAPS.size]
-                    p.trackSelectionParameters = params.clearVideoSizeConstraints()
+        val h = p.videoSize.height
+        rows += PanelRow(
+            if (tracks.size <= 1) "السيرفر بيبعت جودة وحدة بس" + (if (h > 0) " (${h}p)" else "")
+            else "الجودات المتوفرة في هذا البث (${tracks.size})",
+            header = true,
+        )
+        if (tracks.size > 1) tracks.forEach { t ->
+            rows += PanelRow(t.label, checked = overridden && t.selected) {
+                p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                    .clearVideoSizeConstraints()
+                    .setOverrideForType(TrackSelectionOverride(t.group.mediaTrackGroup, t.index))
+                    .build()
+                showInfo("الجودة: ${t.label}")
+                done(back)
+            }
+        }
+        showPanel("الجودة", rows, back)
+    }
+
+    /** Subtitles and audio together, like the big streaming apps. */
+    private fun subtitlePage(back: (() -> Unit)? = null) {
+        val p = exo ?: return
+        val self = { subtitlePage(back) }
+        val subs = tracksOf(C.TRACK_TYPE_TEXT, includeUnsupported = true)
+        val off = p.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT) || subs.none { it.selected }
+        val rows = ArrayList<PanelRow>()
+        rows += PanelRow(
+            when {
+                subs.isEmpty() && p.playbackState != Player.STATE_READY -> "الترجمة — لسا عم يحمّل الفيديو"
+                subs.isEmpty() -> "الترجمة — ما في ترجمة داخل هذا البث"
+                else -> "الترجمة"
+            },
+            header = true,
+        )
+        rows += PanelRow("إيقاف", checked = off) {
+            p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
+            showInfo("الترجمة: إيقاف")
+            done(back)
+        }
+        subs.forEach { t ->
+            rows += PanelRow(t.label.substringBefore("  ⚠"), if (t.supported) null else "صيغة مش مدعومة — جرّب ملف ترجمة", checked = !off && t.selected) {
+                if (!t.supported) {
+                    Toast.makeText(this, "هاي الترجمة بصيغة ما بيدعمها المشغّل. جرّب ملف ترجمة من الجهاز", Toast.LENGTH_LONG).show()
+                    return@PanelRow
+                }
+                p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                    .setOverrideForType(TrackSelectionOverride(t.group.mediaTrackGroup, t.index))
+                    .build()
+                showInfo("الترجمة: ${t.label}")
+                done(back)
+            }
+        }
+        rows += PanelRow("تحميل ملف ترجمة من الجهاز", "srt • vtt • ass") {
+            closePanel()
+            try {
+                pickSubtitle.launch(arrayOf("*/*"))
+            } catch (e: Exception) {
+                Toast.makeText(this, "ما في مدير ملفات على هذا الجهاز", Toast.LENGTH_LONG).show()
+            }
+        }
+        rows += PanelRow("حجم الترجمة", SUB_NAMES[SUB_SCALES.indexOfFirst { it == store.subtitleScale }.coerceAtLeast(1)], chevron = true) { subSizePage(self) }
+
+        val audio = tracksOf(C.TRACK_TYPE_AUDIO)
+        rows += PanelRow(if (audio.size <= 1) "الصوت — مسار واحد" else "الصوت", header = true)
+        audio.forEach { t ->
+            rows += PanelRow(t.label, checked = t.selected) {
+                if (audio.size > 1) {
+                    p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
                         .setOverrideForType(TrackSelectionOverride(t.group.mediaTrackGroup, t.index))
                         .build()
-                    showInfo("الجودة: ${t.label}")
+                    showInfo("الصوت: ${t.label}")
                 }
-                d.dismiss()
+                done(back)
             }
-            .show()
+        }
+        showPanel("الترجمة والصوت", rows, back)
     }
 
     /** Subtitle files the user loaded from the device for the current item. */
@@ -849,53 +1040,6 @@ class PlayerActivity : AppCompatActivity() {
 
     private val pickSubtitle = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) addSubtitleFile(uri)
-    }
-
-    private fun chooseSubtitle() {
-        val p = exo ?: return
-        val tracks = tracksOf(C.TRACK_TYPE_TEXT, includeUnsupported = true)
-        val off = p.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)
-        val labels = ArrayList<String>()
-        labels += "إيقاف الترجمة"
-        tracks.forEach { labels += it.label }
-        labels += "📂  تحميل ملف ترجمة من الجهاز (srt / vtt / ass)…"
-        val loadIndex = labels.size - 1
-        val checked = if (off || tracks.none { it.selected }) 0 else tracks.indexOfFirst { it.selected } + 1
-        val title = when {
-            tracks.isEmpty() && p.playbackState != Player.STATE_READY -> "الترجمة — لسا عم يحمّل الفيديو، جرّب بعد ثواني"
-            tracks.isEmpty() -> "الترجمة — ما لقيت ترجمة داخل هذا البث"
-            else -> "الترجمة — متوفر ${tracks.size}"
-        }
-        AlertDialog.Builder(this)
-            .setTitle(title)
-            .setSingleChoiceItems(labels.toTypedArray(), checked) { d, which ->
-                d.dismiss()
-                when {
-                    which == loadIndex -> try {
-                        pickSubtitle.launch(arrayOf("*/*"))
-                    } catch (e: Exception) {
-                        Toast.makeText(this, "ما في مدير ملفات على هذا الجهاز", Toast.LENGTH_LONG).show()
-                    }
-                    which == 0 -> {
-                        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
-                            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
-                        showInfo("الترجمة: إيقاف")
-                    }
-                    else -> {
-                        val t = tracks[which - 1]
-                        if (!t.supported) {
-                            Toast.makeText(this, "هاي الترجمة بصيغة ما بيدعمها المشغّل. جرّب ملف ترجمة من الجهاز", Toast.LENGTH_LONG).show()
-                            return@setSingleChoiceItems
-                        }
-                        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
-                            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                            .setOverrideForType(TrackSelectionOverride(t.group.mediaTrackGroup, t.index))
-                            .build()
-                        showInfo("الترجمة: ${t.label}")
-                    }
-                }
-            }
-            .show()
     }
 
     /** Adds a subtitle file from the device and reloads the video at the same spot. */
@@ -927,35 +1071,15 @@ class PlayerActivity : AppCompatActivity() {
         showInfo("انضافت الترجمة: $name")
     }
 
-    private fun chooseAudio() {
-        val p = exo ?: return
-        val tracks = tracksOf(C.TRACK_TYPE_AUDIO)
-        if (tracks.size <= 1) {
-            Toast.makeText(this, "في مسار صوت واحد بس", Toast.LENGTH_SHORT).show()
-            return
-        }
-        AlertDialog.Builder(this)
-            .setTitle("الصوت")
-            .setSingleChoiceItems(tracks.map { it.label }.toTypedArray(), tracks.indexOfFirst { it.selected }) { d, which ->
-                val t = tracks[which]
-                p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
-                    .setOverrideForType(TrackSelectionOverride(t.group.mediaTrackGroup, t.index))
-                    .build()
-                showInfo("الصوت: ${t.label}")
-                d.dismiss()
-            }
-            .show()
-    }
-
-    private fun chooseResize() {
-        AlertDialog.Builder(this)
-            .setTitle("حجم الشاشة")
-            .setSingleChoiceItems(ASPECTS.map { it.name }.toTypedArray(), store.resizeIndex.coerceIn(0, ASPECTS.size - 1)) { d, which ->
-                store.resizeIndex = which
+    private fun aspectPage(back: (() -> Unit)? = null) {
+        val cur = store.resizeIndex.coerceIn(0, ASPECTS.size - 1)
+        showPanel("حجم الشاشة", ASPECTS.mapIndexed { i, a ->
+            PanelRow(a.name, checked = i == cur) {
+                store.resizeIndex = i
                 applyAspect(announce = true)
-                d.dismiss()
+                done(back)
             }
-            .show()
+        }, back)
     }
 
     private fun cycleResize() {
@@ -977,27 +1101,76 @@ class PlayerActivity : AppCompatActivity() {
         if (announce) showInfo("حجم الشاشة: ${a.name}")
     }
 
-    private fun chooseOrientation() {
-        AlertDialog.Builder(this)
-            .setTitle("اتجاه الشاشة")
-            .setSingleChoiceItems(ORIENTATIONS.map { it.first }.toTypedArray(), store.orientation.coerceIn(0, ORIENTATIONS.size - 1)) { d, which ->
-                store.orientation = which
-                requestedOrientation = ORIENTATIONS[which].second
-                d.dismiss()
+    private fun orientationPage(back: (() -> Unit)? = null) {
+        val cur = store.orientation.coerceIn(0, ORIENTATIONS.size - 1)
+        showPanel("اتجاه الشاشة", ORIENTATIONS.mapIndexed { i, o ->
+            PanelRow(o.first, checked = i == cur) {
+                store.orientation = i
+                requestedOrientation = o.second
+                done(back)
             }
-            .show()
+        }, back)
     }
 
-    private fun chooseSubSize() {
-        val current = SUB_SCALES.indexOfFirst { it == store.subtitleScale }.coerceAtLeast(1)
-        AlertDialog.Builder(this)
-            .setTitle("حجم الترجمة")
-            .setSingleChoiceItems(SUB_NAMES, current) { d, which ->
-                store.subtitleScale = SUB_SCALES[which]
+    private fun subSizePage(back: (() -> Unit)? = null) {
+        val cur = SUB_SCALES.indexOfFirst { it == store.subtitleScale }.coerceAtLeast(1)
+        showPanel("حجم الترجمة", SUB_NAMES.mapIndexed { i, n ->
+            PanelRow(n, checked = i == cur) {
+                store.subtitleScale = SUB_SCALES[i]
                 applySubtitleStyle()
-                d.dismiss()
+                done(back)
             }
-            .show()
+        }, back)
+    }
+
+    private fun speedPage(back: (() -> Unit)? = null) {
+        val p = exo ?: return
+        showPanel("سرعة التشغيل", SPEEDS.map { sp ->
+            PanelRow(if (sp == 1f) "عادية (1x)" else "${sp}x", checked = p.playbackParameters.speed == sp) {
+                p.setPlaybackSpeed(sp)
+                showInfo("السرعة: ${sp}x")
+                done(back)
+            }
+        }, back)
+    }
+
+    // ---------- up next ----------
+
+    /** The viewer pressed "cancel" on the up-next card for this episode. */
+    private var nextCancelledFor = -1
+
+    private fun playNextEpisode() {
+        val n = nextEpisodeIndex()
+        if (n < 0) return
+        b.nextCard.visibility = View.GONE
+        startItem(n, 0, finishedPrevious = true)
+    }
+
+    private val upNextTick = object : Runnable {
+        override fun run() {
+            updateUpNext()
+            handler.postDelayed(this, 500)
+        }
+    }
+
+    private fun updateUpNext() {
+        val p = exo
+        val n = nextEpisodeIndex()
+        val dur = p?.duration ?: C.TIME_UNSET
+        val left = if (p != null && dur != C.TIME_UNSET) dur - p.currentPosition else Long.MAX_VALUE
+        val show = p != null && !casting && n >= 0 && nextCancelledFor != index &&
+            dur > 120_000 && p.playbackState == Player.STATE_READY && left in 1..UP_NEXT_MS &&
+            !panelOpen && !stripOpen && !b.listPanel.isVisible
+        if (show) {
+            b.nextName.text = items[n].name
+            b.nextPlay.text = "▶  شغّل الآن (${(left + 999) / 1000})"
+            if (!b.nextCard.isVisible) {
+                b.nextCard.visibility = View.VISIBLE
+                if (Device.isTv(this)) b.nextPlay.requestFocus()
+            }
+        } else if (b.nextCard.isVisible) {
+            b.nextCard.visibility = View.GONE
+        }
     }
 
     private fun applySubtitleStyle() {
@@ -1011,18 +1184,6 @@ class PlayerActivity : AppCompatActivity() {
             )
             setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * store.subtitleScale)
         }
-    }
-
-    private fun chooseSpeed() {
-        val p = exo ?: return
-        val names = SPEEDS.map { "${it}x" }.toTypedArray()
-        AlertDialog.Builder(this)
-            .setTitle("سرعة التشغيل")
-            .setSingleChoiceItems(names, SPEEDS.indexOfFirst { it == p.playbackParameters.speed }) { d, which ->
-                p.setPlaybackSpeed(SPEEDS[which])
-                d.dismiss()
-            }
-            .show()
     }
 
     // ---------- UI helpers ----------
@@ -1054,6 +1215,11 @@ class PlayerActivity : AppCompatActivity() {
         handler.postDelayed(hideInfo, 3000)
     }
 
+    private fun showStatus(text: String) {
+        b.statusText.text = text
+        b.statusPill.visibility = View.VISIBLE
+    }
+
     private fun showError(text: String) {
         b.error.text = text
         b.error.visibility = View.VISIBLE
@@ -1061,7 +1227,7 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         // Strip open: the remote moves between episodes; OK plays the focused one.
-        if (stripOpen && event.keyCode != KeyEvent.KEYCODE_BACK) return super.dispatchKeyEvent(event)
+        if ((stripOpen || panelOpen || b.nextCard.hasFocus()) && event.keyCode != KeyEvent.KEYCODE_BACK) return super.dispatchKeyEvent(event)
         if (event.action == KeyEvent.ACTION_DOWN && !b.listPanel.isVisible) {
             val controllerShown = b.playerView.isControllerFullyVisible
             when (event.keyCode) {
@@ -1079,7 +1245,7 @@ class PlayerActivity : AppCompatActivity() {
                 KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> { showSettings(); return true }
                 KeyEvent.KEYCODE_GUIDE -> { openEpisodesOrList(); return true }
                 KeyEvent.KEYCODE_ZOOM_IN, KeyEvent.KEYCODE_TV_ZOOM_MODE -> { cycleResize(); return true }
-                KeyEvent.KEYCODE_CAPTIONS -> { chooseSubtitle(); return true }
+                KeyEvent.KEYCODE_CAPTIONS -> { subtitlePage(); return true }
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> if (!controllerShown) {
                     if (isLive() && items.size > 1) openList() else b.playerView.showController()
                     return true

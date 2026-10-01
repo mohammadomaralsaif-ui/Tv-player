@@ -1,0 +1,294 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Custom player controls (inflated by Media3's PlayerControlView).
+  The whole overlay is the "controls background", so everything fades in and out together.
+  Media3 drives the @id/exo_* views; the rest is wired up in PlayerActivity.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@id/exo_controls_background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#29000000">
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="150dp"
+        android:layout_gravity="top"
+        android:background="@drawable/top_gradient" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="240dp"
+        android:layout_gravity="bottom"
+        android:background="@drawable/player_bottom_shade" />
+
+    <!-- Top: back, title, cast, settings -->
+    <LinearLayout
+        android:id="@+id/ctlTop"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingTop="14dp"
+        android:paddingEnd="16dp">
+
+        <ImageButton
+            android:id="@+id/btnBack"
+            style="@style/IconButton"
+            android:layout_marginStart="0dp"
+            android:contentDescription="@string/back"
+            android:src="@drawable/ic_back" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/ctlTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:textAlignment="viewStart"
+                android:textColor="#FFFFFF"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/ctlSubtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:textAlignment="viewStart"
+                android:textColor="#C5CEDB"
+                android:textSize="14sp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <androidx.mediarouter.app.MediaRouteButton
+            android:id="@+id/btnCast"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_icon_btn"
+            android:contentDescription="عرض على التلفزيون"
+            android:visibility="gone"
+            app:mediaRouteButtonTint="#FFFFFF" />
+
+        <ImageButton
+            android:id="@+id/btnSettings"
+            style="@style/IconButton"
+            android:contentDescription="الإعدادات"
+            android:src="@drawable/ic_nav_settings" />
+    </LinearLayout>
+
+    <!-- Center: previous, -10, play/pause, +10, next (always left-to-right, like a timeline) -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:gravity="center_vertical"
+        android:layoutDirection="ltr"
+        android:orientation="horizontal">
+
+        <ImageButton
+            android:id="@id/exo_prev"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:background="@drawable/bg_play_small"
+            android:contentDescription="السابق"
+            android:padding="12dp"
+            android:scaleType="fitCenter" />
+
+        <FrameLayout
+            android:id="@+id/rewWrap"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="22dp">
+
+            <ImageButton
+                android:id="@id/exo_rew"
+                android:layout_width="58dp"
+                android:layout_height="58dp"
+                android:background="@drawable/bg_play_small"
+                android:contentDescription="رجوع 10 ثواني"
+                android:padding="11dp"
+                android:scaleType="fitCenter" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginTop="3dp"
+                android:text="10"
+                android:textColor="#FFFFFF"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+        </FrameLayout>
+
+        <ImageButton
+            android:id="@id/exo_play_pause"
+            android:layout_width="84dp"
+            android:layout_height="84dp"
+            android:layout_marginStart="26dp"
+            android:layout_marginEnd="26dp"
+            android:background="@drawable/bg_play_big"
+            android:contentDescription="تشغيل / إيقاف مؤقت"
+            android:padding="20dp"
+            android:scaleType="fitCenter" />
+
+        <FrameLayout
+            android:id="@+id/ffwdWrap"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="22dp">
+
+            <ImageButton
+                android:id="@id/exo_ffwd"
+                android:layout_width="58dp"
+                android:layout_height="58dp"
+                android:background="@drawable/bg_play_small"
+                android:contentDescription="تقديم 10 ثواني"
+                android:padding="11dp"
+                android:scaleType="fitCenter" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginTop="3dp"
+                android:text="10"
+                android:textColor="#FFFFFF"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+        </FrameLayout>
+
+        <ImageButton
+            android:id="@id/exo_next"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:background="@drawable/bg_play_small"
+            android:contentDescription="التالي"
+            android:padding="12dp"
+            android:scaleType="fitCenter" />
+    </LinearLayout>
+
+    <!-- Bottom: timeline + actions -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="10dp">
+
+        <LinearLayout
+            android:id="@+id/ctlTimeRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:layoutDirection="ltr"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@id/exo_position"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFeatureSettings="tnum"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <androidx.media3.ui.DefaultTimeBar
+                android:id="@id/exo_progress"
+                android:layout_width="0dp"
+                android:layout_height="34dp"
+                android:layout_marginStart="10dp"
+                android:layout_marginEnd="10dp"
+                android:layout_weight="1"
+                app:bar_height="4dp"
+                app:buffered_color="#66FFFFFF"
+                app:played_color="@color/accent"
+                app:scrubber_color="#FFFFFF"
+                app:scrubber_dragged_size="22dp"
+                app:scrubber_enabled_size="14dp"
+                app:touch_target_height="34dp"
+                app:unplayed_color="#33FFFFFF" />
+
+            <TextView
+                android:id="@id/exo_duration"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFeatureSettings="tnum"
+                android:textColor="#C5CEDB"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/ctlLive"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_live"
+                android:paddingStart="10dp"
+                android:paddingTop="3dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="3dp"
+                android:text="●  مباشر"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fillViewport="true"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btnList"
+                    style="@style/PlayerAction"
+                    android:drawableStart="@drawable/ic_pl_episodes"
+                    android:text="الحلقات" />
+
+                <Button
+                    android:id="@+id/btnSubs"
+                    style="@style/PlayerAction"
+                    android:drawableStart="@drawable/ic_pl_subs"
+                    android:text="الترجمة والصوت" />
+
+                <Button
+                    android:id="@+id/btnAspect"
+                    style="@style/PlayerAction"
+                    android:drawableStart="@drawable/ic_pl_aspect"
+                    android:text="حجم الشاشة" />
+
+                <Space
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1" />
+
+                <Button
+                    android:id="@+id/btnNextEp"
+                    style="@style/PlayerAction"
+                    android:drawableStart="@drawable/ic_pl_next"
+                    android:text="الحلقة التالية"
+                    android:visibility="gone" />
+            </LinearLayout>
+        </HorizontalScrollView>
+    </LinearLayout>
+</FrameLayout>
