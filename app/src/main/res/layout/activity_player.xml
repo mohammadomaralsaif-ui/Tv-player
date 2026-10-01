@@ -159,6 +159,8 @@
             <Button
                 android:id="@+id/btnCloseEpisodes"
                 style="@style/Pill"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:text="✕  إغلاق" />
         </LinearLayout>
 

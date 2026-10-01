@@ -61,3 +61,6 @@ jobs:
             shots/**/*.png
             logcat.txt
             instrument.txt
+      - name: Fail on app crash
+        run: |
+          if grep -q "FATAL EXCEPTION" logcat.txt; then echo "::error::App crashed during the UI test"; exit 1; fi
