@@ -60,7 +60,10 @@ class PlayerGestures(
             osd(if (forward) "⏩  +10 ثواني" else "⏪  −10 ثواني")
             return true
         }
-    })
+    }).apply {
+        // A slow tap (busy device) must still count as a tap, not a long press.
+        setIsLongpressEnabled(false)
+    }
 
     override fun onTouch(v: View, e: MotionEvent): Boolean {
         detector.onTouchEvent(e)
