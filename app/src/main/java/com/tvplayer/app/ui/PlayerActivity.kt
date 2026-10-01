@@ -133,22 +133,23 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     /** Views inside the custom controller (player_controls.xml). */
-    private class Ctl(root: View) {
-        val title: android.widget.TextView = root.findViewById(R.id.ctlTitle)
-        val subtitle: android.widget.TextView = root.findViewById(R.id.ctlSubtitle)
-        val back: View = root.findViewById(R.id.btnBack)
-        val cast: androidx.mediarouter.app.MediaRouteButton = root.findViewById(R.id.btnCast)
-        val settings: View = root.findViewById(R.id.btnSettings)
-        val list: android.widget.Button = root.findViewById(R.id.btnList)
-        val subs: android.widget.Button = root.findViewById(R.id.btnSubs)
-        val aspect: android.widget.Button = root.findViewById(R.id.btnAspect)
-        val nextEp: android.widget.Button = root.findViewById(R.id.btnNextEp)
-        val live: View = root.findViewById(R.id.ctlLive)
-        val rewWrap: View = root.findViewById(R.id.rewWrap)
-        val ffwdWrap: View = root.findViewById(R.id.ffwdWrap)
-        val position: View = root.findViewById(androidx.media3.ui.R.id.exo_position)
-        val duration: View = root.findViewById(androidx.media3.ui.R.id.exo_duration)
-        val progress: View = root.findViewById(androidx.media3.ui.R.id.exo_progress)
+    private class Ctl(container: View) {
+        val root: View = container.findViewById(androidx.media3.ui.R.id.exo_controls_background)
+        val title: android.widget.TextView = container.findViewById(R.id.ctlTitle)
+        val subtitle: android.widget.TextView = container.findViewById(R.id.ctlSubtitle)
+        val back: View = container.findViewById(R.id.btnBack)
+        val cast: androidx.mediarouter.app.MediaRouteButton = container.findViewById(R.id.btnCast)
+        val settings: View = container.findViewById(R.id.btnSettings)
+        val list: android.widget.Button = container.findViewById(R.id.btnList)
+        val subs: android.widget.Button = container.findViewById(R.id.btnSubs)
+        val aspect: android.widget.Button = container.findViewById(R.id.btnAspect)
+        val nextEp: android.widget.Button = container.findViewById(R.id.btnNextEp)
+        val live: View = container.findViewById(R.id.ctlLive)
+        val rewWrap: View = container.findViewById(R.id.rewWrap)
+        val ffwdWrap: View = container.findViewById(R.id.ffwdWrap)
+        val position: View = container.findViewById(androidx.media3.ui.R.id.exo_position)
+        val duration: View = container.findViewById(androidx.media3.ui.R.id.exo_duration)
+        val progress: View = container.findViewById(androidx.media3.ui.R.id.exo_progress)
     }
     private lateinit var ctl: Ctl
 
@@ -290,6 +291,8 @@ class PlayerActivity : AppCompatActivity() {
         b.playerView.setShowRewindButton(true)
         b.playerView.setShowFastForwardButton(true)
         b.playerView.setShowSubtitleButton(false)
+        // Show/hide the whole overlay at once (our own quick fade below), not Media3's staged animation.
+        b.playerView.setControllerAnimationEnabled(false)
         if (!Device.isTv(this)) {
             // Touch gestures: volume, brightness, seeking, double-tap ±10s.
             b.playerView.setOnTouchListener(
@@ -314,6 +317,10 @@ class PlayerActivity : AppCompatActivity() {
         ctl.aspect.setOnClickListener { aspectPage() }
         b.playerView.setControllerVisibilityListener(
             PlayerView.ControllerVisibilityListener { v ->
+                if (v == View.VISIBLE) {
+                    ctl.root.alpha = 0f
+                    ctl.root.animate().alpha(1f).setDuration(160).start()
+                }
                 if (!b.listPanel.isVisible) {
                     if (v == View.VISIBLE) updateControls()
                     // Controls and the episodes strip never share the screen.

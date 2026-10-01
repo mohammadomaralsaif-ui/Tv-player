@@ -38,7 +38,9 @@ jobs:
           name: Alsaif-apk
           path: Alsaif.apk
       # Direct download link: /releases/latest/download/TVPlayer.apk
+      # Commits tagged [uitest] are checked on the emulator first; they don't reach users.
       - name: Publish release
+        if: ${{ !contains(github.event.head_commit.message, '[uitest]') }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}

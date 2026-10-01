@@ -46,6 +46,25 @@ class EpisodesUiTest {
         return o != null
     }
 
+    /** Logs what the player overlay looks like right now (for diagnosing). */
+    private fun dumpControls(tag: String) {
+        inst.runOnMainSync {
+            val act = androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry.getInstance()
+                .getActivitiesInStage(androidx.test.runner.lifecycle.Stage.RESUMED).firstOrNull() ?: return@runOnMainSync
+            val pv = act.findViewById<androidx.media3.ui.PlayerView>(R.id.playerView) ?: return@runOnMainSync
+            val c = pv.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_controller)
+            val bg = pv.findViewById<android.view.View>(androidx.media3.ui.R.id.exo_controls_background)
+            log("$tag fully=${pv.isControllerFullyVisible} controller=${c?.visibility}/${c?.width}x${c?.height} bg=${bg?.visibility}/a=${bg?.alpha}/${bg?.width}x${bg?.height}")
+        }
+    }
+
+    private fun closePanels() {
+        device.findObject(By.res(pkg, "panelClose"))?.click() ?: run {
+            device.findObject(By.res(pkg, "btnCloseEpisodes"))?.click()
+        }
+        Thread.sleep(800)
+    }
+
     private fun showControls() {
         if (device.findObject(By.res(pkg, "btnList")) == null) tapCenter()
     }
@@ -80,13 +99,14 @@ class EpisodesUiTest {
         Thread.sleep(12_000)
         shot("01_playing")
 
+        dumpControls("before-tap")
         tapCenter()
+        dumpControls("after-tap")
         shot("02_controls")
 
         clickRes("btnSubs")
         shot("03_subs_audio_panel")
-        device.pressBack()
-        Thread.sleep(800)
+        closePanels()
 
         showControls()
         clickRes("btnSettings")
@@ -94,16 +114,12 @@ class EpisodesUiTest {
         device.findObject(By.text("الجودة"))?.click()
         Thread.sleep(1_200)
         shot("05_quality_page")
-        device.pressBack()
-        Thread.sleep(600)
-        device.pressBack()
-        Thread.sleep(800)
+        closePanels()
 
         showControls()
         clickRes("btnAspect")
         shot("06_aspect_panel")
-        device.pressBack()
-        Thread.sleep(800)
+        closePanels()
 
         showControls()
         clickRes("btnList")
