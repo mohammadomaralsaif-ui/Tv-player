@@ -107,13 +107,26 @@ class PlayerActivity : AppCompatActivity() {
     /** Series: toggle the episodes strip over the controls. Channels: the side list. */
     private fun openEpisodesOrList() {
         if (!showsEpisodes()) { openList(); return }
-        stripOpen = !stripOpen
-        b.episodesBar.visibility = if (stripOpen) View.VISIBLE else View.GONE
-        b.playerView.showController()
-        if (stripOpen) {
-            b.episodesStrip.scrollToPosition(index)
-            b.episodesStrip.post { b.episodesStrip.findViewHolderForAdapterPosition(index)?.itemView?.requestFocus() }
+        if (stripOpen) closeStrip() else openStrip()
+    }
+
+    /** The strip is its own panel: the controls hide while it is open so nothing overlaps. */
+    private fun openStrip() {
+        stripOpen = true
+        b.playerView.hideController()
+        b.episodesBar.visibility = View.VISIBLE
+        b.episodesStrip.scrollToPosition(index)
+        b.episodesStrip.post {
+            b.episodesStrip.findViewHolderForAdapterPosition(index)?.itemView?.requestFocus()
+                ?: b.episodesStrip.requestFocus()
         }
+    }
+
+    private fun closeStrip(showControls: Boolean = false) {
+        if (!stripOpen && !b.episodesBar.isVisible) return
+        stripOpen = false
+        b.episodesBar.visibility = View.GONE
+        if (showControls) b.playerView.showController()
     }
 
     /** Current values on the top-bar buttons: subtitles and quality. */
@@ -249,6 +262,7 @@ class PlayerActivity : AppCompatActivity() {
                     level = { volume, pct -> showLevel(volume, pct) },
                     toggleControls = {
                         if (b.listPanel.isVisible) closeList()
+                        else if (stripOpen) closeStrip()
                         else if (b.playerView.isControllerFullyVisible) b.playerView.hideController()
                         else b.playerView.showController()
                     },
@@ -263,11 +277,8 @@ class PlayerActivity : AppCompatActivity() {
                 if (!b.listPanel.isVisible) {
                     b.topBar.visibility = v
                     if (v == View.VISIBLE) updateChips()
-                    // The episodes strip only shows when asked for (☰ الحلقات), never on its own.
-                    if (v != View.VISIBLE) {
-                        stripOpen = false
-                        b.episodesBar.visibility = View.GONE
-                    }
+                    // Controls and the episodes strip never share the screen.
+                    if (v == View.VISIBLE && stripOpen) closeStrip()
                 }
             }
         )
@@ -281,6 +292,7 @@ class PlayerActivity : AppCompatActivity() {
         b.btnList.isVisible = items.size > 1
         b.btnList.text = if (items.first().kind == ItemKind.LIVE) "☰ القنوات" else "☰ الحلقات"
         b.btnList.setOnClickListener { openEpisodesOrList() }
+        b.btnCloseEpisodes.setOnClickListener { closeStrip(showControls = true) }
 
         listAdapter = ChannelAdapter(
             onClick = { _, pos -> closeList(); if (pos != index) startItem(pos, PlayerQueue.RESUME) },
@@ -292,15 +304,18 @@ class PlayerActivity : AppCompatActivity() {
 
         // Series: the episodes strip shown with the controls.
         stripAdapter = ChannelAdapter(
-            onClick = { _, pos -> if (pos != index) startItem(pos, PlayerQueue.RESUME) },
+            onClick = { _, pos ->
+                closeStrip()
+                if (pos != index) startItem(pos, PlayerQueue.RESUME)
+            },
             onLongClick = {},
             progressOf = { c -> profileId?.let { store.progressFor(it, c)?.percent } },
             subtitleOf = { c -> c.duration.ifBlank { null } },
         ).apply {
             grid = true
             landscape = true
-            fixedWidthPx = ((if (Device.isNarrow(this@PlayerActivity)) 170 else 220) * resources.displayMetrics.density).toInt()
-            onFocusItem = { b.playerView.showController() } // keep controls up while choosing
+            fixedWidthPx = ((if (Device.isTv(this@PlayerActivity)) 230 else 150) * resources.displayMetrics.density).toInt()
+            seriesTitles = false // each card shows its own episode name
         }
         b.episodesStrip.layoutManager = LinearLayoutManager(this, androidx.recyclerview.widget.RecyclerView.HORIZONTAL, false)
         b.episodesStrip.adapter = stripAdapter
@@ -310,7 +325,7 @@ class PlayerActivity : AppCompatActivity() {
             override fun handleOnBackPressed() {
                 when {
                     b.listPanel.isVisible -> closeList()
-                    stripOpen -> { stripOpen = false; b.episodesBar.visibility = View.GONE }
+                    stripOpen -> closeStrip()
                     b.playerView.isControllerFullyVisible -> b.playerView.hideController()
                     else -> finish()
                 }
@@ -1045,6 +1060,8 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // Strip open: the remote moves between episodes; OK plays the focused one.
+        if (stripOpen && event.keyCode != KeyEvent.KEYCODE_BACK) return super.dispatchKeyEvent(event)
         if (event.action == KeyEvent.ACTION_DOWN && !b.listPanel.isVisible) {
             val controllerShown = b.playerView.isControllerFullyVisible
             when (event.keyCode) {

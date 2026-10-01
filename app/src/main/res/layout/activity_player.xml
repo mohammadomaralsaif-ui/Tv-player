@@ -124,27 +124,43 @@
         android:textStyle="bold"
         android:visibility="gone" />
 
-    <!-- Series: episodes strip above the controls -->
+    <!-- Series: episodes panel (controls hide while it is open) -->
     <LinearLayout
         android:id="@+id/episodesBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:layout_marginBottom="118dp"
+        android:background="@drawable/bottom_panel_gradient"
+        android:clickable="true"
         android:orientation="vertical"
-        android:paddingStart="24dp"
-        android:paddingEnd="24dp"
+        android:paddingStart="20dp"
+        android:paddingTop="36dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="16dp"
         android:visibility="gone">
 
-        <TextView
-            android:id="@+id/episodesTitle"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="6dp"
-            android:text="الحلقات"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:textStyle="bold" />
+            android:layout_marginBottom="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/episodesTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="الحلقات"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btnCloseEpisodes"
+                style="@style/Pill"
+                android:text="✕  إغلاق" />
+        </LinearLayout>
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/episodesStrip"

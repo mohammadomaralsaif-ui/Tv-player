@@ -133,7 +133,16 @@ class ChannelAdapter(
 
     /** Index drawn as "now playing" (player side panel). */
     var highlighted: Int = -1
-        set(v) { field = v; notifyDataSetChanged() }
+        set(v) {
+            val old = field
+            field = v
+            // Only the two affected cards redraw (a full refresh stole focus and stuttered).
+            if (old in 0 until itemCount) notifyItemChanged(old)
+            if (v in 0 until itemCount && v != old) notifyItemChanged(v)
+        }
+
+    /** Landscape cards show the series name (continue watching) or the item's own name. */
+    var seriesTitles = true
 
     /** Width of each tile in a horizontal home row (0 = fill the grid cell). */
     var fixedWidthPx = 0
@@ -197,7 +206,7 @@ class ChannelAdapter(
         val type = getItemViewType(position)
         h.name.text = when {
             position == highlighted -> "▶ ${c.name}"
-            type == 2 -> c.seriesName ?: c.name
+            type == 2 && seriesTitles -> c.seriesName ?: c.name
             else -> c.name
         }
         h.extra?.let { e ->
