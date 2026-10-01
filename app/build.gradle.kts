@@ -11,6 +11,7 @@ android {
         applicationId = "com.tvplayer.app"
         minSdk = 21
         targetSdk = 35
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Every CI build gets a higher version so it installs as an update.
         val build = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
         versionCode = build
@@ -58,6 +59,12 @@ android {
 }
 
 dependencies {
+    // On-device UI test (runs on an emulator in GitHub Actions, see ui-test.yml)
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:core:1.6.1")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
+
     val media3 = "1.5.1"
     implementation("androidx.media3:media3-exoplayer:$media3")
     implementation("androidx.media3:media3-exoplayer-hls:$media3")
